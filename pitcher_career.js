@@ -55,6 +55,9 @@ const PITCHCAM_WORLD = {
   7:{x:-27,y:24},8:{x:0,y:24},9:{x:27,y:24}
 };
 
+const PITCHCAM_STRIKE_RECT = { left:47, top:62, width:76, height:86 };
+const FIELD_TARGET_RECT = { left:180, top:168, width:60, height:28 };
+
 const MISS_MAP = {
   1:[{zone:2,weight:0.34},{zone:4,weight:0.32},{zone:5,weight:0.34}],
   2:[{zone:1,weight:0.18},{zone:3,weight:0.18},{zone:5,weight:0.42},{zone:8,weight:0.22}],
@@ -68,10 +71,10 @@ const MISS_MAP = {
 };
 
 const BATTERS = [
-  {key:'power',name:'파워 타자',emoji:'💪',desc:'장타율 높음 · 삼진도 많음',swingBall:0.28,swingStrike:0.82,contact:0.62,power:1.60,threat:0.82,speed:'LOW',aggression:0.34,iq:0.55,steal:0.18},
-  {key:'contact',name:'컨택 타자',emoji:'🎯',desc:'삼진 적음 · 어디든 잘 맞춤',swingBall:0.14,swingStrike:0.88,contact:0.87,power:0.78,threat:0.64,speed:'MID',aggression:0.48,iq:0.74,steal:0.40},
-  {key:'eye',name:'선구안 타자',emoji:'👁️',desc:'볼넷 잘 고름 · 볼에 거의 안 속음',swingBall:0.06,swingStrike:0.70,contact:0.80,power:1.00,threat:0.70,speed:'MID',aggression:0.33,iq:0.82,steal:0.32},
-  {key:'aggressive',name:'적극적 타자',emoji:'🔥',desc:'볼도 공격적으로 스윙',swingBall:0.38,swingStrike:0.92,contact:0.69,power:1.12,threat:0.58,speed:'HIGH',aggression:0.76,iq:0.48,steal:0.74}
+  {key:'power',name:'파워 타자',emoji:'💪',desc:'장타율 높음 · 삼진도 많음',swingBall:0.28,swingStrike:0.82,contact:0.62,power:1.60,threat:0.82,speed:'LOW',aggression:0.34,iq:0.55,steal:0.18,hand:'우'},
+  {key:'contact',name:'컨택 타자',emoji:'🎯',desc:'삼진 적음 · 어디든 잘 맞춤',swingBall:0.14,swingStrike:0.88,contact:0.87,power:0.78,threat:0.64,speed:'MID',aggression:0.48,iq:0.74,steal:0.40,hand:'좌'},
+  {key:'eye',name:'선구안 타자',emoji:'👁️',desc:'볼넷 잘 고름 · 볼에 거의 안 속음',swingBall:0.06,swingStrike:0.70,contact:0.80,power:1.00,threat:0.70,speed:'MID',aggression:0.33,iq:0.82,steal:0.32,hand:'우'},
+  {key:'aggressive',name:'적극적 타자',emoji:'🔥',desc:'볼도 공격적으로 스윙',swingBall:0.38,swingStrike:0.92,contact:0.69,power:1.12,threat:0.58,speed:'HIGH',aggression:0.76,iq:0.48,steal:0.74,hand:'우'}
 ];
 
 const BATTER_MAP = Object.fromEntries(BATTERS.map(batter => [batter.key, batter]));
@@ -791,10 +794,36 @@ function requestNewOuting(){
 
 function updateBatterCard(){
   const batter = state?.batter;
-  if(!batter) return;
+  const matchup = $('batter-matchup');
+  if(!batter){
+    if(matchup){
+      matchup.textContent = '';
+      matchup.className = '';
+    }
+    return;
+  }
   $('batter-avatar').textContent = batter.emoji;
   $('batter-name').textContent = batter.spot ? `${batter.spot}번 ${batter.name}` : batter.name;
   $('batter-type').textContent = batter.teamName ? `${batter.teamEmoji} ${batter.teamName} · ${batter.desc}` : batter.desc;
+  if(!profile){
+    matchup.textContent = '';
+    matchup.className = '';
+  } else {
+    const pitcherSide = profile.handedness === '좌투' ? 'L' : 'R';
+    const batterSide = batter.hand === '좌' ? 'L' : 'R';
+    const handText = batter.hand === '좌' ? '좌타' : '우타';
+    matchup.className = '';
+    if(profile.handedness === '사이드암' && pitcherSide === batterSide){
+      matchup.textContent = `⚡ 사이드암 압도 (${handText})`;
+      matchup.className = 'matchup-sidearm';
+    } else if(pitcherSide !== batterSide){
+      matchup.textContent = `🟢 유리한 매치업 (${handText})`;
+      matchup.className = 'matchup-good';
+    } else {
+      matchup.textContent = `🔴 불리한 매치업 (${handText})`;
+      matchup.className = 'matchup-bad';
+    }
+  }
   $('stat-swing-ball').textContent = `${Math.round(batter.swingBall * 100)}%`;
   $('stat-swing-str').textContent = `${Math.round(batter.swingStrike * 100)}%`;
   $('stat-contact').textContent = `${Math.round(batter.contact * 100)}%`;
@@ -956,6 +985,9 @@ function refreshUI(){
   updateManagerPanel();
   updateStatPanels();
   updateHintPanel();
+  setPitcherPose('idle');
+  setBatterPose('idle');
+  if(!state?.busy) clearBattedBall();
   renderPitchButtons();
   checkReady();
 }
@@ -964,6 +996,8 @@ function resetUIForNoGame(){
   buildZoneGrid();
   buildLineScore();
   updatePlayerCard();
+  $('batter-matchup').textContent = '';
+  $('batter-matchup').className = '';
   updateScoreboard();
   updateRunners();
   updateStamina();
@@ -971,6 +1005,9 @@ function resetUIForNoGame(){
   updateManagerPanel();
   updateStatPanels();
   updateHintPanel();
+  setPitcherPose('idle');
+  setBatterPose('idle');
+  clearBattedBall();
   showReaction('idle', '캐릭터를 생성하면 실제 경기 로그가 누적됩니다.', false);
   showResult('', '캐릭터를 준비하세요', '경기를 시작하면 투구와 커리어 지표가 저장됩니다.');
   $('log-list').innerHTML = '';
@@ -1007,6 +1044,14 @@ function addLog(text, type){
   li.className = type === 'bad' ? 'bad' : type === 'good' ? 'good' : 'neut';
   li.textContent = state ? `[${state.inning}회 / ${state.pitchCount}구 / ${state.actionCount}액션] ${text}` : text;
   $('log-list').prepend(li);
+}
+
+function matchupTag() {
+  if(!profile || !state?.batter) return '';
+  const pitcherSide = profile.handedness === '좌투' ? 'L' : 'R';
+  const batterSide = state.batter.hand === '좌' ? 'L' : 'R';
+  if(profile.handedness === '사이드암' && pitcherSide === batterSide) return '[사이드암↑]';
+  return pitcherSide !== batterSide ? '[플래툰↑]' : '[동측↓]';
 }
 
 function selectPitch(key){
@@ -1059,6 +1104,30 @@ function getCommandModifier(){
   return (0.70 + ((staminaPct - 0.15) / 0.57) * 0.30) * fatigueMods.command;
 }
 
+function getMatchupMods(pitchKind) {
+  if(!profile) return { whiffMult:1, contactMult:1, chaseMult:1 };
+  const pitcherSide = profile.handedness === '좌투' ? 'L' : 'R';
+  const batterSide = state?.batter?.hand === '좌' ? 'L' : 'R';
+  const isSidearm = profile.handedness === '사이드암';
+  const opposite = pitcherSide !== batterSide;
+
+  if(isSidearm){
+    return opposite
+      ? { whiffMult:0.97, contactMult:1.02, chaseMult:0.99 }
+      : { whiffMult:1.22, contactMult:0.85, chaseMult:1.15 };
+  }
+
+  if(opposite){
+    if(pitchKind === 'breaking') return { whiffMult:1.18, contactMult:0.88, chaseMult:1.12 };
+    if(pitchKind === 'offspeed') return { whiffMult:1.10, contactMult:0.92, chaseMult:1.06 };
+    return { whiffMult:1.06, contactMult:0.96, chaseMult:1.04 };
+  }
+
+  if(pitchKind === 'breaking') return { whiffMult:0.84, contactMult:1.12, chaseMult:0.90 };
+  if(pitchKind === 'offspeed') return { whiffMult:0.91, contactMult:1.06, chaseMult:0.94 };
+  return { whiffMult:0.95, contactMult:1.04, chaseMult:0.97 };
+}
+
 function resolveActualZone(targetZoneNum, pitch, sequence){
   const zone = ZONES[targetZoneNum];
   const commandChance = clamp(zone.command * pitch.controlMod * getCommandModifier() * (sequence?.command || 1), 0.40, 0.98);
@@ -1105,13 +1174,97 @@ function getPitchCamProfile(pitch){
   return { bend1:-10 * armSide, bend2:-3 * armSide, rise:-20, sink:42, color:'#ffd45d', duration:590 };
 }
 
-function projectPitchCamWorld(point){
-  const depth = clamp(point.z, 0, 1);
-  const scale = 0.24 + ((1 - depth) * 1.08);
+function randomRange(min, max){
+  return min + (rnd() * (max - min));
+}
+
+function zoneRow(zoneNum){
+  return Math.floor((zoneNum - 1) / 3);
+}
+
+function zoneCol(zoneNum){
+  return (zoneNum - 1) % 3;
+}
+
+function pickBallReferenceZone(actualZone, targetZoneNum){
+  if(actualZone !== 5) return actualZone;
+  if(targetZoneNum !== 5) return targetZoneNum;
+  return [2, 4, 6, 8][Math.floor(rnd() * 4)];
+}
+
+function samplePitchLocation(actualZone, targetZoneNum, actualStrike){
+  const strike = PITCHCAM_STRIKE_RECT;
+  const cellW = strike.width / 3;
+  const cellH = strike.height / 3;
+  const marginX = 5;
+  const marginY = 5;
+  let camX;
+  let camY;
+
+  if(actualStrike){
+    const col = zoneCol(actualZone);
+    const row = zoneRow(actualZone);
+    camX = randomRange(
+      strike.left + (col * cellW) + marginX,
+      strike.left + ((col + 1) * cellW) - marginX
+    );
+    camY = randomRange(
+      strike.top + (row * cellH) + marginY,
+      strike.top + ((row + 1) * cellH) - marginY
+    );
+  } else {
+    const referenceZone = pickBallReferenceZone(actualZone, targetZoneNum);
+    const edgePad = 8;
+    switch(referenceZone){
+      case 1:
+        camX = randomRange(strike.left - 12, strike.left + cellW * 0.55);
+        camY = randomRange(strike.top - 16, strike.top - 3);
+        break;
+      case 2:
+        camX = randomRange(strike.left + cellW + marginX, strike.left + cellW * 2 - marginX);
+        camY = randomRange(strike.top - 18, strike.top - 4);
+        break;
+      case 3:
+        camX = randomRange(strike.left + cellW * 2.45, strike.left + strike.width + 12);
+        camY = randomRange(strike.top - 16, strike.top - 3);
+        break;
+      case 4:
+        camX = randomRange(strike.left - 18, strike.left - 4);
+        camY = randomRange(strike.top + marginY, strike.top + strike.height - marginY);
+        break;
+      case 6:
+        camX = randomRange(strike.left + strike.width + 4, strike.left + strike.width + 18);
+        camY = randomRange(strike.top + marginY, strike.top + strike.height - marginY);
+        break;
+      case 7:
+        camX = randomRange(strike.left - 12, strike.left + cellW * 0.55);
+        camY = randomRange(strike.top + strike.height + 3, strike.top + strike.height + 16);
+        break;
+      case 8:
+        camX = randomRange(strike.left + cellW + edgePad, strike.left + cellW * 2 - edgePad);
+        camY = randomRange(strike.top + strike.height + 4, strike.top + strike.height + 18);
+        break;
+      case 9:
+      default:
+        camX = randomRange(strike.left + cellW * 2.45, strike.left + strike.width + 12);
+        camY = randomRange(strike.top + strike.height + 3, strike.top + strike.height + 16);
+        break;
+    }
+  }
+
+  const nx = (camX - strike.left) / strike.width;
+  const ny = (camY - strike.top) / strike.height;
+  const fieldX = FIELD_TARGET_RECT.left + (FIELD_TARGET_RECT.width * nx);
+  const fieldY = FIELD_TARGET_RECT.top + (FIELD_TARGET_RECT.height * ny);
   return {
-    x:85 + (point.x * scale),
-    y:22 + ((1 - depth) * 114) + (point.y * scale)
+    cam:{ x:camX, y:camY },
+    field:{ x:fieldX, y:fieldY },
+    inZone:actualStrike
   };
+}
+
+function getPitchCamColor(actualStrike){
+  return actualStrike ? '#ff626d' : '#52dd7c';
 }
 
 function getTraceNode(){
@@ -1132,34 +1285,310 @@ function getPitchCamNodes(){
   return {
     ball:$('pitchcam-ball'),
     trace:$('pitchcam-trace'),
-    shadow:$('pitchcam-shadow')
+    shadow:$('pitchcam-shadow'),
+    target:$('pitchcam-target')
   };
 }
 
-function animateBall(zoneNum, pitch){
+function getPitcherVisualConfig(){
+  const hand = profile?.handedness || '우투';
+  if(hand === '좌투'){
+    return { x:210, y:120, scaleX:-1, release:{ x:196, y:107 } };
+  }
+  if(hand === '사이드암'){
+    return { x:210, y:122, scaleX:1, release:{ x:226, y:118 } };
+  }
+  return { x:210, y:120, scaleX:1, release:{ x:224, y:107 } };
+}
+
+function setPitcherPose(mode = 'idle'){
+  const group = $('pitcher-group');
+  if(!group) return;
+  const config = getPitcherVisualConfig();
+  const sidearm = profile?.handedness === '사이드암';
+  let rotate = 0;
+  let tx = config.x;
+  let ty = config.y;
+  let throwArm = 'M7 0 Q15 -4 19 -12';
+  let gloveArm = 'M-7 0 Q-15 0 -18 9';
+  let glove = 'M-20 7 Q-24 8 -23 13 Q-19 14 -16 12 Z';
+  let frontLeg = 'M4 11 L10 28';
+  let backLeg = 'M-5 11 L-10 28';
+
+  if(mode === 'windup'){
+    rotate = sidearm ? -10 : -6;
+    tx -= config.scaleX * 2;
+    throwArm = sidearm ? 'M7 0 Q12 -4 8 -15' : 'M7 0 Q10 -10 4 -22';
+    gloveArm = 'M-7 0 Q-18 -4 -20 -15';
+    glove = 'M-22 -15 Q-17 -18 -14 -13 Q-17 -8 -22 -10 Z';
+    frontLeg = 'M4 11 L0 27';
+    backLeg = 'M-5 11 L-10 26';
+  } else if(mode === 'release'){
+    rotate = sidearm ? 7 : 5;
+    tx += config.scaleX * 4;
+    ty += sidearm ? 2 : 0;
+    throwArm = sidearm ? 'M7 -1 Q18 5 28 6' : 'M7 -1 Q18 -6 27 -15';
+    gloveArm = 'M-7 0 Q-10 6 -6 12';
+    glove = 'M-8 10 Q-4 12 -4 16 Q-9 16 -11 13 Z';
+    frontLeg = 'M4 11 L15 28';
+    backLeg = 'M-5 11 L-7 28';
+  }
+
+  group.setAttribute('transform', `translate(${tx} ${ty}) scale(${config.scaleX} 1) rotate(${rotate})`);
+  $('pitcher-arm-throw').setAttribute('d', throwArm);
+  $('pitcher-arm-glove').setAttribute('d', gloveArm);
+  $('pitcher-glove').setAttribute('d', glove);
+  $('pitcher-leg-front').setAttribute('d', frontLeg);
+  $('pitcher-leg-back').setAttribute('d', backLeg);
+}
+
+function playPitcherAnimation(){
+  setPitcherPose('windup');
+  setTimeout(() => setPitcherPose('release'), 120);
+  setTimeout(() => setPitcherPose('idle'), 460);
+}
+
+function getPitcherReleasePoint(){
+  return getPitcherVisualConfig().release;
+}
+
+function getBatterVisualConfig(){
+  const batterHand = state?.batter?.hand || '우';
+  if(batterHand === '좌'){
+    return { x:224, y:186, scaleX:-1, labelX:250 };
+  }
+  return { x:196, y:186, scaleX:1, labelX:166 };
+}
+
+function setBatterPose(mode = 'idle', crushed = false){
+  const group = $('batter-group');
+  if(!group) return;
+  const config = getBatterVisualConfig();
+  let rotate = 0;
+  let bat = { x1:12, y1:-13, x2:25, y2:-27 };
+  let frontArm = 'M7 -1 Q14 -6 16 -14';
+  let backArm = 'M-7 0 Q-13 3 -16 10';
+  let frontLeg = 'M5 12 L11 28';
+  let backLeg = 'M-4 12 L-8 29';
+
+  if(mode === 'look'){
+    rotate = -4;
+    bat = { x1:12, y1:-13, x2:24, y2:-26 };
+  } else if(mode === 'whiff'){
+    rotate = 12;
+    bat = { x1:10, y1:-8, x2:28, y2:-1 };
+    frontArm = 'M7 -1 Q16 0 23 -4';
+    backArm = 'M-7 0 Q-9 6 -6 13';
+    frontLeg = 'M5 12 L14 27';
+  } else if(mode === 'contact'){
+    rotate = crushed ? 18 : 11;
+    bat = crushed ? { x1:11, y1:-7, x2:31, y2:8 } : { x1:11, y1:-7, x2:28, y2:2 };
+    frontArm = crushed ? 'M7 -1 Q17 4 25 7' : 'M7 -1 Q16 2 23 2';
+    backArm = 'M-7 0 Q-8 5 -4 11';
+    frontLeg = 'M5 12 L15 27';
+  }
+
+  group.setAttribute('transform', `translate(${config.x} ${config.y}) scale(${config.scaleX} 1) rotate(${rotate})`);
+  $('batter-bat').setAttribute('x1', `${bat.x1}`);
+  $('batter-bat').setAttribute('y1', `${bat.y1}`);
+  $('batter-bat').setAttribute('x2', `${bat.x2}`);
+  $('batter-bat').setAttribute('y2', `${bat.y2}`);
+  $('batter-arm-front').setAttribute('d', frontArm);
+  $('batter-arm-back').setAttribute('d', backArm);
+  $('batter-leg-front').setAttribute('d', frontLeg);
+  $('batter-leg-back').setAttribute('d', backLeg);
+  $('batter-action').setAttribute('x', `${config.labelX}`);
+}
+
+function getBatterVisualConfig(){
+  const batterHand = state?.batter?.hand || '우';
+  if(batterHand === '좌'){
+    return { x:224, y:186, scaleX:-1, labelX:250 };
+  }
+  return { x:196, y:186, scaleX:1, labelX:166 };
+}
+
+function setBatterPose(mode = 'idle', crushed = false){
+  const group = $('batter-group');
+  if(!group) return;
+  const config = getBatterVisualConfig();
+  let rotate = 0;
+  let tx = config.x;
+  let ty = config.y;
+  let bat = { x1:8, y1:-8, x2:20, y2:-30 };
+  let frontArm = 'M7 -1 Q14 0 15 -9';
+  let backArm = 'M-7 0 Q-13 2 -10 11';
+  let frontLeg = 'M5 12 L13 27';
+  let backLeg = 'M-5 12 L-10 29';
+
+  if(mode === 'idle'){
+    rotate = -8;
+    tx += config.scaleX * -3;
+    bat = { x1:7, y1:-7, x2:19, y2:-32 };
+    frontArm = 'M7 -1 Q14 -1 16 -10';
+    backArm = 'M-7 0 Q-12 5 -9 13';
+    frontLeg = 'M5 12 L14 27';
+    backLeg = 'M-5 12 L-11 29';
+  } else if(mode === 'load'){
+    rotate = -14;
+    tx += config.scaleX * -5;
+    ty -= 1;
+    bat = { x1:6, y1:-5, x2:15, y2:-34 };
+    frontArm = 'M7 -1 Q13 -3 14 -13';
+    backArm = 'M-7 0 Q-15 0 -17 9';
+    frontLeg = 'M5 12 L11 28';
+    backLeg = 'M-5 12 L-12 28';
+  } else if(mode === 'look'){
+    rotate = -5;
+    bat = { x1:8, y1:-8, x2:20, y2:-30 };
+  } else if(mode === 'whiff'){
+    rotate = 14;
+    tx += config.scaleX * 4;
+    bat = { x1:11, y1:-7, x2:31, y2:0 };
+    frontArm = 'M7 -1 Q18 1 24 -5';
+    backArm = 'M-7 0 Q-8 6 -3 14';
+    frontLeg = 'M5 12 L15 27';
+    backLeg = 'M-5 12 L-6 29';
+  } else if(mode === 'contact'){
+    rotate = crushed ? 22 : 13;
+    tx += config.scaleX * 6;
+    bat = crushed ? { x1:12, y1:-5, x2:34, y2:12 } : { x1:11, y1:-6, x2:29, y2:4 };
+    frontArm = crushed ? 'M7 -1 Q18 5 26 9' : 'M7 -1 Q17 2 23 4';
+    backArm = 'M-7 0 Q-8 6 -4 12';
+    frontLeg = 'M5 12 L16 27';
+    backLeg = 'M-5 12 L-5 29';
+  } else if(mode === 'finish'){
+    rotate = crushed ? 28 : 18;
+    tx += config.scaleX * 8;
+    bat = crushed ? { x1:14, y1:-3, x2:36, y2:16 } : { x1:12, y1:-4, x2:31, y2:7 };
+    frontArm = 'M7 -1 Q19 6 27 10';
+    backArm = 'M-7 0 Q-7 7 -2 13';
+    frontLeg = 'M5 12 L16 28';
+    backLeg = 'M-5 12 L-4 29';
+  }
+
+  group.setAttribute('transform', `translate(${tx} ${ty}) scale(${config.scaleX} 1) rotate(${rotate})`);
+  $('batter-bat').setAttribute('x1', `${bat.x1}`);
+  $('batter-bat').setAttribute('y1', `${bat.y1}`);
+  $('batter-bat').setAttribute('x2', `${bat.x2}`);
+  $('batter-bat').setAttribute('y2', `${bat.y2}`);
+  $('batter-arm-front').setAttribute('d', frontArm);
+  $('batter-arm-back').setAttribute('d', backArm);
+  $('batter-leg-front').setAttribute('d', frontLeg);
+  $('batter-leg-back').setAttribute('d', backLeg);
+  $('batter-action').setAttribute('x', `${config.labelX}`);
+}
+
+function getBattedBallNodes(){
+  return {
+    ball:$('batted-ball'),
+    trace:$('batted-trace')
+  };
+}
+
+function clearBattedBall(){
+  const nodes = getBattedBallNodes();
+  if(!nodes.ball || !nodes.trace) return;
+  nodes.ball.setAttribute('opacity', '0');
+  nodes.ball.setAttribute('cx', '-30');
+  nodes.ball.setAttribute('cy', '-30');
+  nodes.trace.setAttribute('opacity', '0');
+  nodes.trace.setAttribute('d', '');
+}
+
+function getBattedBallSpec(result){
+  const pullDir = state?.batter?.hand === '좌' ? 1 : -1;
+  const start = { x:214, y:180 };
+  const sideJitter = (rnd() - 0.5) * 18;
+  const lowArc = 12 + (rnd() * 10);
+  const midArc = 44 + (rnd() * 18);
+  const highArc = 74 + (rnd() * 26);
+  if(result.code === 'groundout'){
+    const end = { x:214 + (pullDir * (34 + rnd() * 34)) + sideJitter, y:126 + rnd() * 18 };
+    return { start, end, c1:{ x:start.x + (pullDir * 18), y:start.y - 10 }, c2:{ x:end.x - (pullDir * 12), y:end.y - lowArc }, color:'#f8f4e7', duration:330, width:2.2 };
+  }
+  if(result.code === 'flyout'){
+    const end = { x:214 + (pullDir * (52 + rnd() * 40)) + sideJitter, y:58 + rnd() * 12 };
+    return { start, end, c1:{ x:start.x + (pullDir * 24), y:start.y - highArc }, c2:{ x:end.x - (pullDir * 10), y:end.y - 10 }, color:'#d8f1ff', duration:560, width:2.4 };
+  }
+  if(result.code === 'single'){
+    const end = { x:214 + (pullDir * (48 + rnd() * 54)) + sideJitter, y:92 + rnd() * 24 };
+    return { start, end, c1:{ x:start.x + (pullDir * 20), y:start.y - midArc }, c2:{ x:end.x - (pullDir * 16), y:end.y - 16 }, color:'#fff0bd', duration:430, width:2.3 };
+  }
+  if(result.code === 'double'){
+    const end = { x:214 + (pullDir * (86 + rnd() * 50)) + sideJitter, y:44 + rnd() * 16 };
+    return { start, end, c1:{ x:start.x + (pullDir * 26), y:start.y - (midArc + 12) }, c2:{ x:end.x - (pullDir * 18), y:end.y - 16 }, color:'#ffd07a', duration:520, width:2.5 };
+  }
+  if(result.code === 'homerun'){
+    const end = { x:214 + (pullDir * (112 + rnd() * 44)) + sideJitter, y:6 + rnd() * 10 };
+    return { start, end, c1:{ x:start.x + (pullDir * 30), y:start.y - (highArc + 10) }, c2:{ x:end.x - (pullDir * 20), y:end.y - 18 }, color:'#ff7a93', duration:680, width:2.8 };
+  }
+  if(result.code === 'foul'){
+    const foulDir = pullDir;
+    const end = { x:214 + (foulDir * (88 + rnd() * 34)), y:148 + rnd() * 20 };
+    return { start, end, c1:{ x:start.x + (foulDir * 24), y:start.y - 30 }, c2:{ x:end.x - (foulDir * 14), y:end.y - 18 }, color:'#d8dbe4', duration:300, width:2.1 };
+  }
+  return null;
+}
+
+function animateBattedBall(result){
+  const spec = getBattedBallSpec(result);
+  if(!spec) return Promise.resolve();
+  return new Promise(resolve => {
+    const nodes = getBattedBallNodes();
+    nodes.trace.setAttribute('d', Array.from({ length:18 }, (_, index) => {
+      const point = bezierPoint(index / 17, spec.start, spec.c1, spec.c2, spec.end);
+      return `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }).join(' '));
+    nodes.trace.setAttribute('stroke', spec.color);
+    nodes.trace.setAttribute('stroke-width', `${spec.width}`);
+    nodes.trace.setAttribute('opacity', '0.8');
+    nodes.ball.setAttribute('fill', spec.color);
+    nodes.ball.setAttribute('cx', `${spec.start.x}`);
+    nodes.ball.setAttribute('cy', `${spec.start.y}`);
+    nodes.ball.setAttribute('r', result.code === 'homerun' ? '5.3' : '4.6');
+    nodes.ball.setAttribute('opacity', '1');
+
+    const startTime = performance.now();
+    const tick = now => {
+      const t = Math.min(1, (now - startTime) / spec.duration);
+      const point = bezierPoint(t, spec.start, spec.c1, spec.c2, spec.end);
+      nodes.ball.setAttribute('cx', `${point.x}`);
+      nodes.ball.setAttribute('cy', `${point.y}`);
+      nodes.trace.setAttribute('opacity', `${0.8 - (t * 0.34)}`);
+      if(t < 1){
+        requestAnimationFrame(tick);
+        return;
+      }
+      setTimeout(() => clearBattedBall(), 420);
+      resolve();
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+function animateBall(result){
   return new Promise(resolve => {
     const ball = $('anim-ball');
     const trace = getTraceNode();
     const cam = getPitchCamNodes();
-    const dest = ZONE_COORDS[zoneNum];
-    const camDest = PITCHCAM_WORLD[zoneNum] || PITCHCAM_WORLD[5];
-    const startX = 210;
-    const startY = 132;
-    const profileCurve = getTrajectoryProfile(pitch);
-    const camCurve = getPitchCamProfile(pitch);
+    const dest = result.fieldPoint;
+    const camDest = result.pitchCamPoint;
+    const camColor = result.pitchCamColor;
+    const releasePoint = getPitcherReleasePoint();
+    const startX = releasePoint.x;
+    const startY = releasePoint.y;
+    const profileCurve = getTrajectoryProfile(result.pitch);
+    const camCurve = getPitchCamProfile(result.pitch);
     const duration = Math.max(profileCurve.duration, camCurve.duration);
     const p0 = { x:startX, y:startY };
     const p1 = { x:startX + profileCurve.bend1, y:startY + profileCurve.lift };
     const p2 = { x:dest.x - profileCurve.bend2, y:startY + 26 + profileCurve.drop };
     const p3 = { x:dest.x, y:dest.y };
-    const cw0 = { x:0, y:-52, z:1 };
-    const cw1 = { x:camCurve.bend1, y:-34 + camCurve.rise, z:0.74 };
-    const cw2 = { x:camDest.x - camCurve.bend2, y:camDest.y + camCurve.sink, z:0.30 };
-    const cw3 = { x:camDest.x, y:camDest.y, z:0.02 };
-    const c0 = projectPitchCamWorld(cw0);
-    const c1 = projectPitchCamWorld(cw1);
-    const c2 = projectPitchCamWorld(cw2);
-    const c3 = projectPitchCamWorld(cw3);
+    const c0 = { x:85, y:18 };
+    const c1 = { x:85 + camCurve.bend1 * 0.55, y:46 + camCurve.rise * 0.45 };
+    const c2 = { x:camDest.x - camCurve.bend2 * 0.24, y:camDest.y - 34 + camCurve.sink * 0.22 };
+    const c3 = { x:camDest.x, y:camDest.y };
     const samples = Array.from({ length:16 }, (_, index) => {
       const point = bezierPoint(index / 15, p0, p1, p2, p3);
       return `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
@@ -1179,11 +1608,15 @@ function animateBall(zoneNum, pitch){
     cam.ball.setAttribute('cx', c0.x);
     cam.ball.setAttribute('cy', c0.y);
     cam.ball.setAttribute('r', 2.8);
-    cam.ball.setAttribute('fill', camCurve.color);
+    cam.ball.setAttribute('fill', camColor);
     cam.ball.setAttribute('opacity', '1');
     cam.trace.setAttribute('d', camSamples);
-    cam.trace.setAttribute('stroke', camCurve.color);
+    cam.trace.setAttribute('stroke', camColor);
     cam.trace.setAttribute('opacity', '0.74');
+    cam.target.setAttribute('opacity', '0');
+    cam.target.setAttribute('cx', `${camDest.x}`);
+    cam.target.setAttribute('cy', `${camDest.y}`);
+    cam.target.setAttribute('fill', camColor);
     cam.shadow.setAttribute('opacity', '0.18');
     const start = performance.now();
     const tick = now => {
@@ -1191,7 +1624,7 @@ function animateBall(zoneNum, pitch){
       const point = bezierPoint(t, p0, p1, p2, p3);
       const camPoint = bezierPoint(t, c0, c1, c2, c3);
       const radius = 6 - (t * 2.4);
-      const camRadius = 2.8 + (Math.pow(t, 1.85) * 8.4);
+      const camRadius = 2.8 + (Math.pow(t, 1.85) * 5.2);
       ball.setAttribute('cx', point.x);
       ball.setAttribute('cy', point.y);
       ball.setAttribute('r', radius.toFixed(2));
@@ -1206,6 +1639,7 @@ function animateBall(zoneNum, pitch){
       cam.shadow.setAttribute('rx', `${4 + (t * 7)}`);
       cam.shadow.setAttribute('ry', `${1.8 + (t * 2.2)}`);
       cam.shadow.setAttribute('opacity', `${0.06 + (t * 0.22)}`);
+      if(t > 0.82) cam.target.setAttribute('opacity', `${(t - 0.82) / 0.18}`);
       if(t < 1){
         requestAnimationFrame(tick);
         return;
@@ -1217,9 +1651,10 @@ function animateBall(zoneNum, pitch){
       trace.setAttribute('opacity', '0');
       cam.ball.setAttribute('opacity', '0');
       cam.ball.setAttribute('fill', '#fff');
-      cam.trace.setAttribute('opacity', '0');
+      cam.trace.setAttribute('opacity', '0.22');
       cam.trace.setAttribute('stroke-width', '2.4');
       cam.shadow.setAttribute('opacity', '0');
+      cam.target.setAttribute('opacity', '1');
       resolve();
     };
     requestAnimationFrame(tick);
@@ -1235,30 +1670,23 @@ function flashZone(zoneNum, code){
 }
 
 function playBatterAnimation(type, crushed){
-  const group = $('batter-group');
-  const bat = $('batter-bat');
   $('batter-action').textContent = crushed ? 'BARREL' : type.toUpperCase();
   if(type === 'look'){
-    group.setAttribute('transform', 'translate(210 186) rotate(-4)');
-    bat.setAttribute('x2', '21'); bat.setAttribute('y2', '-19');
+    setBatterPose('look', crushed);
   } else if(type === 'whiff'){
-    group.setAttribute('transform', 'translate(210 186) rotate(10)');
-    bat.setAttribute('x2', '29'); bat.setAttribute('y2', '-5');
-    setTimeout(() => group.setAttribute('transform', 'translate(210 186) rotate(-8)'), 120);
+    setBatterPose('whiff', crushed);
+    setTimeout(() => setBatterPose('finish', false), 160);
   } else if(type === 'contact'){
-    group.setAttribute('transform', crushed ? 'translate(210 186) rotate(18)' : 'translate(210 186) rotate(12)');
-    bat.setAttribute('x2', crushed ? '33' : '28');
-    bat.setAttribute('y2', crushed ? '4' : '-2');
+    setBatterPose('contact', crushed);
+    setTimeout(() => setBatterPose('finish', crushed), 140);
   } else {
-    group.setAttribute('transform', 'translate(210 186)');
+    setBatterPose('idle');
   }
-  setTimeout(resetBatterAnimation, 520);
+  setTimeout(resetBatterAnimation, 640);
 }
 
 function resetBatterAnimation(){
-  $('batter-group').setAttribute('transform', 'translate(210 186)');
-  $('batter-bat').setAttribute('x2', '21');
-  $('batter-bat').setAttribute('y2', '-19');
+  setBatterPose('idle');
   $('batter-action').textContent = 'READY';
 }
 
@@ -1299,33 +1727,38 @@ function calcResult(pitchKey, targetZoneNum){
   const batter = state.batter;
   const sequence = Engine.getPitchSequencing(state, pitchKey);
   const fatigue = Engine.getFatigueModifiers(state);
+  const { whiffMult, contactMult, chaseMult } = getMatchupMods(pitch.kind);
   const actualZone = resolveActualZone(targetZoneNum, pitch, sequence);
   const zone = ZONES[actualZone];
-  const actualInZone = zone.isStrike > 0.5;
   const actualStrike = rnd() < zone.isStrike;
+  const sampledLocation = samplePitchLocation(actualZone, targetZoneNum, actualStrike);
+  const actualInZone = sampledLocation.inZone;
+  const pitchCamPoint = sampledLocation.cam;
+  const fieldPoint = sampledLocation.field;
+  const pitchCamColor = getPitchCamColor(actualStrike);
   let countMod = 1;
   if(state.strikes === 2) countMod = 1.28;
   else if(state.balls === 3) countMod = 0.70;
   else if(state.balls >= 2 && state.strikes === 0) countMod = 0.82;
-  const chaseBoost = (!actualStrike && ZONES[targetZoneNum].danger < 0.3 ? 1.10 : 1.0) * sequence.chase;
+  const chaseBoost = (!actualStrike && ZONES[targetZoneNum].danger < 0.3 ? 1.10 : 1.0) * chaseMult * sequence.chase;
   const swingProb = clamp((actualStrike ? batter.swingStrike : batter.swingBall) * countMod * chaseBoost, 0.03, 0.97);
   const swings = rnd() < swingProb;
   const locationText = actualZone === targetZoneNum ? `${actualZone}번 코스 적중` : `${targetZoneNum}번 노림 → 실제 ${actualZone}번`;
   if(!swings){
-    return actualStrike ? { code:'called_k', msg:'루킹 스트라이크!', sub:'타자가 그냥 지켜봤다.', actualZone, actualInZone, actualStrike, swings, reaction:'look', locationText, pitch }
-      : { code:'ball', msg:'볼', sub:'타자가 침착하게 골라냈다.', actualZone, actualInZone, actualStrike, swings, reaction:'look', locationText, pitch };
+    return actualStrike ? { code:'called_k', msg:'루킹 스트라이크!', sub:'타자가 그냥 지켜봤다.', actualZone, actualInZone, actualStrike, swings, reaction:'look', locationText, pitch, pitchCamPoint, fieldPoint, pitchCamColor }
+      : { code:'ball', msg:'볼', sub:'타자가 침착하게 골라냈다.', actualZone, actualInZone, actualStrike, swings, reaction:'look', locationText, pitch, pitchCamPoint, fieldPoint, pitchCamColor };
   }
   const aheadBonus = (state.strikes > state.balls && pitch.kind !== 'fastball') ? 1.22 : 1.0;
   const cornerBonus = zone.danger < 0.3 ? 1.20 : zone.danger > 0.9 ? 0.82 : 1.0;
   const chaseWhiff = actualStrike ? 1.0 : 1.08;
-  const whiffProb = Math.min((1 - batter.contact) * pitch.whiffMod * aheadBonus * cornerBonus * chaseWhiff * sequence.whiff * fatigue.whiff, 0.72);
+  const whiffProb = Math.min((1 - batter.contact * contactMult) * pitch.whiffMod * aheadBonus * cornerBonus * chaseWhiff * sequence.whiff * fatigue.whiff * whiffMult, 0.72);
   if(rnd() < whiffProb){
     const messages = [`헛스윙! ${pitch.name}에 완전히 속았다.`, `스윙 앤 미스! 날카로운 ${pitch.name}.`, `배트가 허공을 갈랐다.`];
-    return { code:'whiff', msg:messages[Math.floor(rnd() * messages.length)], sub:'', actualZone, actualInZone, actualStrike, swings, reaction:'whiff', locationText, pitch };
+    return { code:'whiff', msg:messages[Math.floor(rnd() * messages.length)], sub:'', actualZone, actualInZone, actualStrike, swings, reaction:'whiff', locationText, pitch, pitchCamPoint, fieldPoint, pitchCamColor };
   }
   const quality = zone.danger * batter.power * pitch.powerMod * fatigue.damage * sequence.damage * (actualZone === targetZoneNum ? 1.0 : 1.18);
   if(quality > 0.84 && rnd() < 0.12 * quality){
-    return { code:'homerun', msg:'홈런!!!', sub:'실투를 놓치지 않았다.', actualZone, actualStrike, swings, reaction:'contact', locationText, pitch };
+    return { code:'homerun', msg:'홈런!!!', sub:'실투를 놓치지 않았다.', actualZone, actualInZone, actualStrike, swings, reaction:'contact', locationText, pitch, pitchCamPoint, fieldPoint, pitchCamColor };
   }
   const foulP = 0.22;
   const goP = Math.max(0.10, 0.47 - quality * 0.18);
@@ -1335,7 +1768,7 @@ function calcResult(pitchKey, targetZoneNum){
   const total = foulP + goP + foP + sglP + dblP;
   const r = rnd();
   let acc = 0;
-  const outcome = (code, msg, sub) => ({ code, msg, sub, actualZone, actualInZone, actualStrike, swings, reaction:'contact', locationText, pitch });
+  const outcome = (code, msg, sub) => ({ code, msg, sub, actualZone, actualInZone, actualStrike, swings, reaction:'contact', locationText, pitch, pitchCamPoint, fieldPoint, pitchCamColor });
   acc += foulP / total; if(r < acc) return outcome('foul', '파울볼!', '타구가 선 밖으로 빠졌다.');
   acc += goP / total; if(r < acc) return outcome('groundout', '땅볼 아웃!', '내야수가 잡아냈다.');
   acc += foP / total; if(r < acc) return outcome('flyout', '뜬공 아웃!', '외야수가 처리했다.');
@@ -1366,6 +1799,8 @@ function finishPlateAppearance(result){
   let plateEnded = false;
   let logType = 'neut';
   let extra = '';
+  const tag = matchupTag();
+  const tagged = text => tag ? `${text} ${tag}` : text;
   if(result.code === 'ball'){
     state.balls++;
     if(state.balls >= 4){
@@ -1373,7 +1808,7 @@ function finishPlateAppearance(result){
       plateEnded = true;
       logType = walk.runs ? 'bad' : 'neut';
       showResult(result.code, result.msg, `${result.locationText} · ${walk.msg}`);
-      addLog(`${result.pitch.name} / ${result.locationText} / ${walk.msg}`, logType);
+      addLog(tagged(`${result.pitch.name} / ${result.locationText} / ${walk.msg}`), logType);
     } else {
       showResult(result.code, result.msg, `${result.locationText} · ${result.sub}`);
       addLog(`${result.pitch.name} / ${result.locationText} / 볼카운트 ${state.balls}-${state.strikes}`, 'neut');
@@ -1382,12 +1817,12 @@ function finishPlateAppearance(result){
     state.strikes++;
     if(state.strikes >= 3){ plateEnded = true; state.outs++; stats.outsRecorded++; stats.strikeouts++; extra = '루킹 삼진.'; logType = 'good'; }
     showResult(result.code, result.msg, `${result.locationText} · ${extra || result.sub}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / ${extra || '스트라이크 누적'}`, logType);
+    addLog(plateEnded ? tagged(`${result.pitch.name} / ${result.locationText} / ${extra || '스트라이크 누적'}`) : `${result.pitch.name} / ${result.locationText} / ${extra || '스트라이크 누적'}`, logType);
   } else if(result.code === 'whiff'){
     state.strikes++;
     if(state.strikes >= 3){ plateEnded = true; state.outs++; stats.outsRecorded++; stats.strikeouts++; extra = '헛스윙 삼진.'; logType = 'good'; }
     showResult(result.code, result.msg, `${result.locationText}${extra ? ` · ${extra}` : ''}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / ${extra || '헛스윙 스트라이크'}`, logType);
+    addLog(plateEnded ? tagged(`${result.pitch.name} / ${result.locationText} / ${extra || '헛스윙 스트라이크'}`) : `${result.pitch.name} / ${result.locationText} / ${extra || '헛스윙 스트라이크'}`, logType);
   } else if(result.code === 'foul'){
     if(state.strikes < 2) state.strikes++;
     showResult(result.code, result.msg, `${result.locationText} · ${result.sub}`);
@@ -1398,26 +1833,26 @@ function finishPlateAppearance(result){
     state.outs += ground.outsAdded;
     stats.outsRecorded += ground.outsAdded;
     stats.groundouts++;
-    stats.ballsInPlay++;
-    applyRuns(ground.runs);
-    showResult(result.code, result.msg, `${result.locationText} · ${ground.sub}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / ${ground.logSuffix}${ground.runs ? ` · ${ground.runs}점` : ''}`, ground.runs ? 'bad' : 'good');
+      stats.ballsInPlay++;
+      applyRuns(ground.runs);
+      showResult(result.code, result.msg, `${result.locationText} · ${ground.sub}`);
+      addLog(tagged(`${result.pitch.name} / ${result.locationText} / ${ground.logSuffix}${ground.runs ? ` · ${ground.runs}점` : ''}`), ground.runs ? 'bad' : 'good');
   } else if(result.code === 'flyout'){
     plateEnded = true;
     const fly = Engine.resolveFlyout(state, rnd);
     state.outs += fly.outsAdded;
     stats.outsRecorded += fly.outsAdded;
     stats.flyouts++;
-    stats.ballsInPlay++;
-    applyRuns(fly.runs);
-    showResult(result.code, result.msg, `${result.locationText} · ${fly.sub}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / ${fly.logSuffix}${fly.runs ? ` · ${fly.runs}점` : ''}`, fly.runs ? 'bad' : 'good');
+      stats.ballsInPlay++;
+      applyRuns(fly.runs);
+      showResult(result.code, result.msg, `${result.locationText} · ${fly.sub}`);
+      addLog(tagged(`${result.pitch.name} / ${result.locationText} / ${fly.logSuffix}${fly.runs ? ` · ${fly.runs}점` : ''}`), fly.runs ? 'bad' : 'good');
   } else if(['single','double','homerun'].includes(result.code)){
     plateEnded = true;
     const runs = handleHit(result.code);
     const tail = runs ? ` ${runs}점 실점.` : '';
     showResult(result.code, result.msg, `${result.locationText} · ${result.sub}${tail}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / ${result.msg}${tail}`, runs ? 'bad' : 'neut');
+    addLog(tagged(`${result.pitch.name} / ${result.locationText} / ${result.msg}${tail}`), runs ? 'bad' : 'neut');
   }
   if(plateEnded) stats.battersFaced++;
   return plateEnded;
@@ -1581,22 +2016,28 @@ async function throwPitch(){
     refreshUI();
     persistSave();
     return;
-  }
-  state.pitchCount++;
-  applyPitchDrain();
-  const result = calcResult(state.selectedPitch, state.selectedZone);
-  Engine.recordPitchHistory(state, {
-    pitchKey:state.selectedPitch,
+    }
+    state.pitchCount++;
+    applyPitchDrain();
+    clearBattedBall();
+    setBatterPose('load');
+    const result = calcResult(state.selectedPitch, state.selectedZone);
+    Engine.recordPitchHistory(state, {
+      pitchKey:state.selectedPitch,
     kind:result.pitch.kind,
     targetZone:state.selectedZone,
     actualZone:result.actualZone,
     code:result.code
-  });
-  recordPitchAnalytics(result);
-  await animateBall(result.actualZone, result.pitch);
-  flashZone(result.actualZone, result.code);
-  playBatterAnimation(result.reaction, result.code === 'homerun');
-  showReaction(result.reaction, `${result.locationText} · ${result.pitch.name} ${result.pitch.speed}`, result.code === 'homerun');
+    });
+    recordPitchAnalytics(result);
+    playPitcherAnimation();
+    await animateBall(result);
+    flashZone(result.actualZone, result.code);
+    playBatterAnimation(result.reaction, result.code === 'homerun');
+    if(['foul','groundout','flyout','single','double','homerun'].includes(result.code)){
+      await animateBattedBall(result);
+    }
+    showReaction(result.reaction, `${result.locationText} · ${result.pitch.name} ${result.pitch.speed}`, result.code === 'homerun');
   const plateEnded = finishPlateAppearance(result);
   refreshUI();
   if(plateEnded){

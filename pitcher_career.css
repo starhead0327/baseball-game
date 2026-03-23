@@ -307,6 +307,31 @@ header h1{
   align-items:stretch;
 }
 
+#field-column{
+  display:grid;
+  grid-template-rows:auto 1fr;
+  gap:12px;
+  min-width:0;
+}
+
+#field-info-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 244px;
+  gap:12px;
+  align-items:stretch;
+}
+
+#field-stage{
+  position:relative;
+  display:block;
+  background:#07101d;
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+  overflow:hidden;
+  min-height:432px;
+}
+
 #dashboard-strip{
   display:grid;
   grid-template-columns:200px minmax(0,1fr) 200px;
@@ -376,6 +401,28 @@ header h1{
   color:var(--muted);
   font-size:.7rem;
   margin-top:2px;
+}
+
+#batter-matchup{
+  min-height:1.1rem;
+  margin-top:4px;
+  font-weight:600;
+  text-align:center;
+}
+
+.matchup-good{
+  color:var(--safe);
+  font-size:.78rem;
+}
+
+.matchup-bad{
+  color:var(--danger);
+  font-size:.78rem;
+}
+
+.matchup-sidearm{
+  color:var(--accent);
+  font-size:.78rem;
 }
 
 .tag-row{
@@ -456,23 +503,24 @@ header h1{
 
 #field-wrap{
   position:relative;
-  background:#07101d;
-  border:1px solid var(--border);
-  border-radius:16px;
-  min-height:420px;
-  padding:92px 20px 18px;
+  background:transparent;
+  border:none;
+  border-radius:0;
+  min-height:400px;
+  padding:10px 0 0;
   display:flex;
   justify-content:center;
-  align-items:flex-end;
+  align-items:flex-start;
   overflow:hidden;
 }
 
 #field-svg{
   width:100%;
-  max-width:430px;
+  max-width:560px;
   display:block;
   position:relative;
   z-index:1;
+  transform:translateY(-10px);
 }
 
 #field-overlay{
@@ -489,8 +537,8 @@ header h1{
 }
 
 #result-box{
-  width:min(46%,260px);
-  min-height:106px;
+  width:100%;
+  min-height:118px;
   display:flex;
   flex-direction:column;
   justify-content:center;
@@ -522,7 +570,8 @@ header h1{
 }
 
 #reaction-panel{
-  width:min(42%,240px);
+  width:100%;
+  min-height:118px;
   margin:0;
   padding:10px 12px;
   background:linear-gradient(180deg,#0d1c33f0,#0b1830f0);
@@ -572,24 +621,34 @@ header h1{
 
 #pitchcam-panel{
   position:absolute;
-  right:18px;
-  bottom:18px;
-  width:190px;
+  right:14px;
+  bottom:14px;
+  width:154px;
+  min-height:0;
   margin:0;
-  padding:10px 10px 8px;
-  z-index:2;
-  background:linear-gradient(180deg,#0b1a31ef,#08111fed);
+  padding:8px 8px 6px;
+  background:linear-gradient(180deg,#0b1a31f0,#08111fe8);
+  border:1px solid #21446e;
+  border-radius:12px;
+  box-shadow:0 12px 24px #0000003a;
   backdrop-filter:blur(3px);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  z-index:3;
 }
 
 #pitchcam-panel .panel-title{
-  margin-bottom:8px;
+  margin-bottom:6px;
+  font-size:.6rem;
 }
 
 #pitchcam-svg{
   display:block;
   width:100%;
   height:auto;
+  max-width:136px;
+  margin:0 auto;
 }
 
 .reaction-look{border-color:var(--accent2);box-shadow:0 0 14px #4a9eff28}
@@ -979,7 +1038,9 @@ header h1{
   }
 
   #center-stage,
-  #dashboard-strip{
+  #dashboard-strip,
+  #field-info-row,
+  #field-stage{
     grid-template-columns:1fr;
   }
 
@@ -990,15 +1051,19 @@ header h1{
   #field-wrap{
     min-height:auto;
     padding:14px;
-    flex-direction:column;
-    align-items:stretch;
+    align-items:center;
   }
 
-  #field-overlay{
+  #field-stage{
+    padding:14px;
+    min-height:auto;
+  }
+
+  #pitchcam-panel{
     position:static;
-    flex-direction:column;
-    gap:10px;
-    margin-bottom:10px;
+    width:100%;
+    max-width:none;
+    margin-top:12px;
   }
 
   #result-box,
@@ -1049,15 +1114,5 @@ header h1{
   #field-svg{
     max-width:300px;
   }
-
-  #pitchcam-panel{
-    width:160px;
-    right:10px;
-    bottom:10px;
-  }
 }
 
-#hint-panel li::before{
-  content:'›';
-  color:#f5c84288;
-}

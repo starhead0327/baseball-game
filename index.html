@@ -92,8 +92,8 @@
     </div>
 
     <div id="center-stage">
-      <div id="field-wrap">
-        <div id="field-overlay">
+      <div id="field-column">
+        <div id="field-info-row">
           <div id="result-box">
             <div id="result-icon">⚾</div>
             <div id="result-text">캐릭터를 준비하세요</div>
@@ -112,83 +112,97 @@
           </div>
         </div>
 
-        <div class="panel" id="pitchcam-panel">
-          <div class="panel-title">포수 시점</div>
-          <svg id="pitchcam-svg" viewBox="0 0 170 210" xmlns="http://www.w3.org/2000/svg">
+        <div id="field-stage">
+          <div id="field-wrap">
+          <svg id="field-svg" viewBox="0 0 420 250" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <linearGradient id="camBg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#0c1830"/>
-                <stop offset="100%" stop-color="#08101d"/>
-              </linearGradient>
-              <linearGradient id="camZoneFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#10233d"/>
-                <stop offset="100%" stop-color="#0b1524"/>
-              </linearGradient>
+              <radialGradient id="fieldGrad" cx="50%" cy="78%" r="72%">
+                <stop offset="0%" stop-color="#246424"/>
+                <stop offset="100%" stop-color="#0e3010"/>
+              </radialGradient>
+              <radialGradient id="dirtGrad" cx="50%" cy="80%" r="62%">
+                <stop offset="0%" stop-color="#85562e"/>
+                <stop offset="100%" stop-color="#563111"/>
+              </radialGradient>
             </defs>
-            <rect x="0" y="0" width="170" height="210" rx="14" fill="url(#camBg)"/>
-            <path d="M85 18 L30 58" stroke="#2d4666" stroke-width="1.5" opacity=".65"/>
-            <path d="M85 18 L140 58" stroke="#2d4666" stroke-width="1.5" opacity=".65"/>
-            <path d="M85 18 L52 150" stroke="#203856" stroke-width="1" opacity=".35"/>
-            <path d="M85 18 L118 150" stroke="#203856" stroke-width="1" opacity=".35"/>
-            <circle cx="85" cy="18" r="5.5" fill="#77aaf5" opacity=".85"/>
-            <path d="M85 24 L85 42" stroke="#77aaf5" stroke-width="2.6" stroke-linecap="round" opacity=".75"/>
-            <path d="M74 34 L96 34" stroke="#77aaf5" stroke-width="2.6" stroke-linecap="round" opacity=".75"/>
-            <rect x="47" y="62" width="76" height="86" rx="8" fill="url(#camZoneFill)" stroke="#8ab6ea" stroke-width="2"/>
-            <line x1="72.3" y1="62" x2="72.3" y2="148" stroke="#36577e" stroke-width="1"/>
-            <line x1="97.7" y1="62" x2="97.7" y2="148" stroke="#36577e" stroke-width="1"/>
-            <line x1="47" y1="90.7" x2="123" y2="90.7" stroke="#36577e" stroke-width="1"/>
-            <line x1="47" y1="119.3" x2="123" y2="119.3" stroke="#36577e" stroke-width="1"/>
-            <path d="M85 152 L108 166 L101 182 L69 182 L62 166 Z" fill="#f1f3f8" stroke="#bfc5d1" stroke-width="1"/>
-            <path id="pitchcam-trace" d="" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity="0"/>
-            <ellipse id="pitchcam-shadow" cx="85" cy="150" rx="8" ry="3.2" fill="#000" opacity="0"/>
-            <circle id="pitchcam-ball" cx="85" cy="18" r="4" fill="#fff" stroke="#d8d8d8" stroke-width="1" opacity="0"/>
+            <path d="M210,230 L35,70 Q210,-40 385,70 Z" fill="url(#fieldGrad)" stroke="#2b7d2b" stroke-width="1.2"/>
+            <line x1="210" y1="230" x2="35" y2="70" stroke="#ffffff55" stroke-width="1.6"/>
+            <line x1="210" y1="230" x2="385" y2="70" stroke="#ffffff55" stroke-width="1.6"/>
+            <polygon points="210,184 128,132 210,82 292,132" fill="url(#dirtGrad)"/>
+            <polygon points="210,171 141,132 210,95 279,132" fill="#1c5620"/>
+            <polygon points="210,184 128,132 210,82 292,132" fill="none" stroke="#ffffff60" stroke-width="1.4"/>
+            <ellipse cx="210" cy="133" rx="16" ry="10" fill="#7c5830" stroke="#5b3814" stroke-width="1"/>
+            <polygon points="210,184 201,178 201,170 219,170 219,178" fill="#fff" stroke="#bbb" stroke-width=".6"/>
+            <rect id="base1" x="284" y="126" width="18" height="14" rx="2" fill="#4a2f10" stroke="#8a6a40" stroke-width="1.5"/>
+            <rect id="base2" x="201" y="74" width="18" height="14" rx="2" fill="#4a2f10" stroke="#8a6a40" stroke-width="1.5"/>
+            <rect id="base3" x="118" y="126" width="18" height="14" rx="2" fill="#4a2f10" stroke="#8a6a40" stroke-width="1.5"/>
+            <circle id="runner1" cx="293" cy="127" r="8" fill="#ef5f7a" opacity="0" stroke="#ffb1bf" stroke-width="1.6"/>
+            <circle id="runner2" cx="210" cy="75" r="8" fill="#ef5f7a" opacity="0" stroke="#ffb1bf" stroke-width="1.6"/>
+            <circle id="runner3" cx="127" cy="127" r="8" fill="#ef5f7a" opacity="0" stroke="#ffb1bf" stroke-width="1.6"/>
+            <g id="pitcher-group" transform="translate(210 120)">
+              <ellipse cx="0" cy="24" rx="16" ry="4.5" fill="#00000033"/>
+              <path id="pitcher-leg-back" d="M-5 11 L-10 28" fill="none" stroke="#7fb0f5" stroke-width="4.4" stroke-linecap="round"/>
+              <path id="pitcher-leg-front" d="M4 11 L10 28" fill="none" stroke="#8fc0ff" stroke-width="4.8" stroke-linecap="round"/>
+              <path id="pitcher-torso" d="M-8 -1 Q0 -11 8 -1 L6 11 Q0 15 -6 11 Z" fill="#4a90e2" stroke="#82b4f0" stroke-width="1.4"/>
+              <path id="pitcher-arm-glove" d="M-7 0 Q-15 0 -18 9" fill="none" stroke="#8fc0ff" stroke-width="4.4" stroke-linecap="round"/>
+              <path id="pitcher-arm-throw" d="M7 0 Q15 -4 19 -12" fill="none" stroke="#8fc0ff" stroke-width="4.4" stroke-linecap="round"/>
+              <path id="pitcher-glove" d="M-20 7 Q-24 8 -23 13 Q-19 14 -16 12 Z" fill="#d3a060" stroke="#f0c48f" stroke-width="1"/>
+              <circle id="pitcher-head" cx="0" cy="-15" r="6.2" fill="#ffd4be" stroke="#f6b59d" stroke-width="1"/>
+              <path id="pitcher-cap" d="M-7 -18 Q0 -24 7 -18 L5 -14 Q0 -16 -5 -14 Z" fill="#285d9d" stroke="#5f95d4" stroke-width="1"/>
+            </g>
+            <g id="batter-group" transform="translate(224 186)">
+              <ellipse cx="0" cy="25" rx="18" ry="4.8" fill="#00000033"/>
+              <path id="batter-leg-back" d="M-4 12 L-8 29" fill="none" stroke="#ffb1bf" stroke-width="4.4" stroke-linecap="round"/>
+              <path id="batter-leg-front" d="M5 12 L11 28" fill="none" stroke="#ffc3ce" stroke-width="4.8" stroke-linecap="round"/>
+              <path id="batter-torso" d="M-8 -2 Q0 -12 8 -2 L6 12 Q0 16 -6 12 Z" fill="#ef5f7a" stroke="#ffb1bf" stroke-width="1.4"/>
+              <path id="batter-arm-back" d="M-7 0 Q-13 3 -16 10" fill="none" stroke="#ffc3ce" stroke-width="4.1" stroke-linecap="round"/>
+              <path id="batter-arm-front" d="M7 -1 Q14 -6 16 -14" fill="none" stroke="#ffc3ce" stroke-width="4.1" stroke-linecap="round"/>
+              <circle id="batter-head" cx="0" cy="-16" r="6.2" fill="#ffd4be" stroke="#f6b59d" stroke-width="1"/>
+              <path id="batter-helmet" d="M-7 -19 Q-1 -25 7 -18 L6 -12 Q0 -14 -6 -12 Z" fill="#cc3f5f" stroke="#ff93aa" stroke-width="1"/>
+              <line id="batter-bat" x1="12" y1="-13" x2="25" y2="-27" stroke="#dcb076" stroke-width="4.1" stroke-linecap="round"/>
+            </g>
+            <text id="batter-action" x="250" y="182" fill="#dce8f8" font-size="11" font-weight="700" opacity=".8">READY</text>
+            <path d="M35,70 Q210,-40 385,70" fill="none" stroke="#4b6a4b" stroke-width="3"/>
+            <path id="batted-trace" d="" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity="0"/>
+            <circle id="batted-ball" cx="-30" cy="-30" r="4.8" fill="#fff6dc" stroke="#d7d0c3" stroke-width="1" opacity="0"/>
+            <circle id="anim-ball" cx="-30" cy="-30" r="6" fill="#fff" stroke="#cfcfcf" stroke-width="1" opacity="0"/>
           </svg>
-        </div>
+          </div>
 
-        <svg id="field-svg" viewBox="0 0 420 250" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="fieldGrad" cx="50%" cy="78%" r="72%">
-              <stop offset="0%" stop-color="#246424"/>
-              <stop offset="100%" stop-color="#0e3010"/>
-            </radialGradient>
-            <radialGradient id="dirtGrad" cx="50%" cy="80%" r="62%">
-              <stop offset="0%" stop-color="#85562e"/>
-              <stop offset="100%" stop-color="#563111"/>
-            </radialGradient>
-          </defs>
-          <path d="M210,230 L35,70 Q210,-40 385,70 Z" fill="url(#fieldGrad)" stroke="#2b7d2b" stroke-width="1.2"/>
-          <line x1="210" y1="230" x2="35" y2="70" stroke="#ffffff55" stroke-width="1.6"/>
-          <line x1="210" y1="230" x2="385" y2="70" stroke="#ffffff55" stroke-width="1.6"/>
-          <polygon points="210,184 128,132 210,82 292,132" fill="url(#dirtGrad)"/>
-          <polygon points="210,171 141,132 210,95 279,132" fill="#1c5620"/>
-          <polygon points="210,184 128,132 210,82 292,132" fill="none" stroke="#ffffff60" stroke-width="1.4"/>
-          <ellipse cx="210" cy="133" rx="16" ry="10" fill="#7c5830" stroke="#5b3814" stroke-width="1"/>
-          <polygon points="210,184 201,178 201,170 219,170 219,178" fill="#fff" stroke="#bbb" stroke-width=".6"/>
-          <rect id="base1" x="284" y="126" width="18" height="14" rx="2" fill="#4a2f10" stroke="#8a6a40" stroke-width="1.5"/>
-          <rect id="base2" x="201" y="74" width="18" height="14" rx="2" fill="#4a2f10" stroke="#8a6a40" stroke-width="1.5"/>
-          <rect id="base3" x="118" y="126" width="18" height="14" rx="2" fill="#4a2f10" stroke="#8a6a40" stroke-width="1.5"/>
-          <circle id="runner1" cx="293" cy="127" r="8" fill="#ef5f7a" opacity="0" stroke="#ffb1bf" stroke-width="1.6"/>
-          <circle id="runner2" cx="210" cy="75" r="8" fill="#ef5f7a" opacity="0" stroke="#ffb1bf" stroke-width="1.6"/>
-          <circle id="runner3" cx="127" cy="127" r="8" fill="#ef5f7a" opacity="0" stroke="#ffb1bf" stroke-width="1.6"/>
-          <g id="pitcher-group" transform="translate(210 120)">
-            <circle cx="0" cy="-10" r="5" fill="#4a90e2" stroke="#82b4f0" stroke-width="1.2"/>
-            <line x1="0" y1="-5" x2="0" y2="10" stroke="#82b4f0" stroke-width="3" stroke-linecap="round"/>
-            <line x1="-9" y1="2" x2="8" y2="-1" stroke="#82b4f0" stroke-width="3" stroke-linecap="round"/>
-            <line x1="-6" y1="17" x2="0" y2="10" stroke="#82b4f0" stroke-width="3" stroke-linecap="round"/>
-            <line x1="6" y1="17" x2="0" y2="10" stroke="#82b4f0" stroke-width="3" stroke-linecap="round"/>
-          </g>
-          <g id="batter-group" transform="translate(210 186)">
-            <circle cx="0" cy="-13" r="5" fill="#ef5f7a" stroke="#ffb1bf" stroke-width="1.2"/>
-            <line x1="0" y1="-8" x2="0" y2="8" stroke="#ffb1bf" stroke-width="3" stroke-linecap="round"/>
-            <line x1="-8" y1="-2" x2="6" y2="2" stroke="#ffb1bf" stroke-width="3" stroke-linecap="round"/>
-            <line x1="-5" y1="15" x2="0" y2="8" stroke="#ffb1bf" stroke-width="3" stroke-linecap="round"/>
-            <line x1="6" y1="15" x2="0" y2="8" stroke="#ffb1bf" stroke-width="3" stroke-linecap="round"/>
-            <line id="batter-bat" x1="7" y1="-4" x2="21" y2="-19" stroke="#dcb076" stroke-width="3.2" stroke-linecap="round"/>
-          </g>
-          <text id="batter-action" x="250" y="182" fill="#dce8f8" font-size="11" font-weight="700" opacity=".8">READY</text>
-          <path d="M35,70 Q210,-40 385,70" fill="none" stroke="#4b6a4b" stroke-width="3"/>
-          <circle id="anim-ball" cx="-30" cy="-30" r="6" fill="#fff" stroke="#cfcfcf" stroke-width="1" opacity="0"/>
-        </svg>
+          <div class="panel" id="pitchcam-panel">
+            <div class="panel-title">포수 시점</div>
+            <svg id="pitchcam-svg" viewBox="0 0 170 210" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="camBg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#0c1830"/>
+                  <stop offset="100%" stop-color="#08101d"/>
+                </linearGradient>
+                <linearGradient id="camZoneFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10233d"/>
+                  <stop offset="100%" stop-color="#0b1524"/>
+                </linearGradient>
+              </defs>
+              <rect x="0" y="0" width="170" height="210" rx="14" fill="url(#camBg)"/>
+              <path d="M85 18 L30 58" stroke="#2d4666" stroke-width="1.5" opacity=".65"/>
+              <path d="M85 18 L140 58" stroke="#2d4666" stroke-width="1.5" opacity=".65"/>
+              <path d="M85 18 L52 150" stroke="#203856" stroke-width="1" opacity=".35"/>
+              <path d="M85 18 L118 150" stroke="#203856" stroke-width="1" opacity=".35"/>
+              <circle cx="85" cy="18" r="5.5" fill="#77aaf5" opacity=".85"/>
+              <path d="M85 24 L85 42" stroke="#77aaf5" stroke-width="2.6" stroke-linecap="round" opacity=".75"/>
+              <path d="M74 34 L96 34" stroke="#77aaf5" stroke-width="2.6" stroke-linecap="round" opacity=".75"/>
+              <rect x="47" y="62" width="76" height="86" rx="8" fill="url(#camZoneFill)" stroke="#8ab6ea" stroke-width="2"/>
+              <line x1="72.3" y1="62" x2="72.3" y2="148" stroke="#36577e" stroke-width="1"/>
+              <line x1="97.7" y1="62" x2="97.7" y2="148" stroke="#36577e" stroke-width="1"/>
+              <line x1="47" y1="90.7" x2="123" y2="90.7" stroke="#36577e" stroke-width="1"/>
+              <line x1="47" y1="119.3" x2="123" y2="119.3" stroke="#36577e" stroke-width="1"/>
+              <path d="M85 152 L108 166 L101 182 L69 182 L62 166 Z" fill="#f1f3f8" stroke="#bfc5d1" stroke-width="1"/>
+              <path id="pitchcam-trace" d="" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity="0"/>
+              <ellipse id="pitchcam-shadow" cx="85" cy="150" rx="8" ry="3.2" fill="#000" opacity="0"/>
+              <circle id="pitchcam-target" cx="85" cy="105" r="5.2" fill="#ff5e66" stroke="#ffffff" stroke-width="1.4" opacity="0"/>
+              <circle id="pitchcam-ball" cx="85" cy="18" r="4" fill="#fff" stroke="#d8d8d8" stroke-width="1" opacity="0"/>
+            </svg>
+          </div>
+        </div>
       </div>
 
       <div id="controls-strip">
@@ -215,6 +229,7 @@
       <div class="avatar" id="batter-avatar">🧢</div>
       <div class="card-name" id="batter-name">타자 대기</div>
       <div class="card-sub" id="batter-type">게임이 시작되면 상대 타자가 등장합니다.</div>
+      <div id="batter-matchup"></div>
       <div class="stat-row"><span>볼 스윙율</span><span id="stat-swing-ball">—</span></div>
       <div class="stat-row"><span>존 스윙율</span><span id="stat-swing-str">—</span></div>
       <div class="stat-row"><span>컨택율</span><span id="stat-contact">—</span></div>
