@@ -14,6 +14,8 @@ const PITCHES = {
   '4':{name:'커브',emoji:'🟡',velo:118,note:'낙차↑',controlMod:0.84,whiffMod:1.24,powerMod:0.78,kind:'breaking'}
 };
 
+const PICKOFF = {name:'견제',emoji:'🫳',note:'주자 자동 견제',kind:'pickoff'};
+
 const ZONES = {
   1:{label:'좌상',isStrike:0.18,danger:0.28,command:0.60},
   2:{label:'중상',isStrike:0.82,danger:0.50,command:0.87},
@@ -45,10 +47,10 @@ const MISS_MAP = {
 };
 
 const BATTERS = [
-  {name:'파워 타자',emoji:'💪',desc:'장타율 높음 · 삼진도 많음',swingBall:0.28,swingStrike:0.82,contact:0.62,power:1.60,threat:0.82},
-  {name:'컨택 타자',emoji:'🎯',desc:'삼진 적음 · 어디든 잘 맞춤',swingBall:0.14,swingStrike:0.88,contact:0.87,power:0.78,threat:0.64},
-  {name:'선구안 타자',emoji:'👁️',desc:'볼넷 잘 고름 · 볼에 거의 안 속음',swingBall:0.06,swingStrike:0.70,contact:0.80,power:1.00,threat:0.70},
-  {name:'적극적 타자',emoji:'🔥',desc:'볼도 공격적으로 스윙',swingBall:0.38,swingStrike:0.92,contact:0.69,power:1.12,threat:0.58}
+  {name:'파워 타자',emoji:'💪',desc:'장타율 높음 · 삼진도 많음',swingBall:0.28,swingStrike:0.82,contact:0.62,power:1.60,threat:0.82,speed:'LOW'},
+  {name:'컨택 타자',emoji:'🎯',desc:'삼진 적음 · 어디든 잘 맞춤',swingBall:0.14,swingStrike:0.88,contact:0.87,power:0.78,threat:0.64,speed:'MID'},
+  {name:'선구안 타자',emoji:'👁️',desc:'볼넷 잘 고름 · 볼에 거의 안 속음',swingBall:0.06,swingStrike:0.70,contact:0.80,power:1.00,threat:0.70,speed:'MID'},
+  {name:'적극적 타자',emoji:'🔥',desc:'볼도 공격적으로 스윙',swingBall:0.38,swingStrike:0.92,contact:0.69,power:1.12,threat:0.58,speed:'HIGH'}
 ];
 
 const NUMERIC_FIELDS = ['games','starts','outsRecorded','pitches','battersFaced','runs','earnedRuns','hits','singles','doubles','homers','walks','strikeouts','swings','contacts','calledStrikes','swingingStrikes','foulStrikes','strikesThrown','ballsThrown','zonePitches','outZonePitches','chaseSwings','firstPitchStrikes','firstPitchTotal','groundouts','flyouts','ballsInPlay','scorelessInnings','inningsCompleted'];
@@ -56,6 +58,7 @@ const NUMERIC_FIELDS = ['games','starts','outsRecorded','pitches','battersFaced'
 let saveData = { profile:null, activeGame:null };
 let profile = null;
 let state = null;
+const Engine = window.PitcherCareerEngine;
 
 const $ = id => document.getElementById(id);
 const rnd = () => Math.random();
@@ -121,6 +124,10 @@ function loadSave(){
   profile = saveData.profile || null;
 }
 
+function normalizeGameState(gameState){
+  return Engine.normalizeGameState(gameState);
+}
+
 function persistSave(){
   saveData.profile = profile;
   saveData.activeGame = state && !state.gameEnded ? { ...state, busy:false } : null;
@@ -173,10 +180,12 @@ function buildLineScore(){
 
 function renderPitchButtons(){
   const grid = $('pitch-grid');
-  grid.innerHTML = Object.keys(PITCHES).map(key => {
-    const pitch = getPitchModel(key);
+  const options = Object.keys(PITCHES).map(key => ({ key, pitch:getPitchModel(key) }));
+  if(state && state.bases.some(Boolean)) options.push({ key:'pickoff', pitch:PICKOFF });
+  grid.innerHTML = options.map(({ key, pitch }) => {
     const selected = state && state.selectedPitch === key ? ' selected' : '';
-    return `<button class="pitch-btn${selected}" data-key="${key}" onclick="selectPitch('${key}')"><span class="pitch-name">${pitch.name} ${pitch.emoji}</span><span class="pitch-meta">${pitch.speed} · ${pitch.note}</span></button>`;
+    const meta = key === 'pickoff' ? pitch.note : `${pitch.speed} · ${pitch.note}`;
+    return `<button class="pitch-btn${selected}" data-key="${key}" onclick="selectPitch('${key}')"><span class="pitch-name">${pitch.name} ${pitch.emoji}</span><span class="pitch-meta">${meta}</span></button>`;
   }).join('');
 }
 
@@ -226,7 +235,34 @@ function renderStartOverlay(){
 
 function makeFreshState(){
   const trait = getArchetype();
-  return { inning:1, outs:0, balls:0, strikes:0, runs:0, pitchCount:0, faced:0, bases:[false,false,false], runsByInning:Array(9).fill(0), selectedPitch:null, selectedZone:null, busy:false, betweenInnings:false, pendingPull:false, gameEnded:false, committed:false, stamina:trait.maxStamina, maxStamina:trait.maxStamina, batter:null, paFirstPitch:true, gameStats:emptyStatLine() };
+  return {
+    inning:1,
+    outs:0,
+    balls:0,
+    strikes:0,
+    runs:0,
+    pitchCount:0,
+    actionCount:0,
+    faced:0,
+    bases:[false,false,false],
+    runners:[null,null,null],
+    runnerSpeeds:[null,null,null],
+    pickoff_attempts:[0,0,0],
+    pitchHistory:[],
+    runsByInning:Array(9).fill(0),
+    selectedPitch:null,
+    selectedZone:null,
+    busy:false,
+    betweenInnings:false,
+    pendingPull:false,
+    gameEnded:false,
+    committed:false,
+    stamina:trait.maxStamina,
+    maxStamina:trait.maxStamina,
+    batter:null,
+    paFirstPitch:true,
+    gameStats:emptyStatLine()
+  };
 }
 
 function pickBatter(){ return { ...BATTERS[Math.floor(Math.random() * BATTERS.length)] }; }
@@ -234,11 +270,25 @@ function pickBatter(){ return { ...BATTERS[Math.floor(Math.random() * BATTERS.le
 function loadNextBatter(){
   state.batter = pickBatter();
   state.faced++;
-  state.gameStats.battersFaced++;
   state.paFirstPitch = true;
   state.balls = 0;
   state.strikes = 0;
+  state.pickoff_attempts = [0,0,0];
   updateBatterCard();
+}
+
+function syncStateRunners(){
+  if(!state) return;
+  Engine.syncBases(state);
+  state.runnerSpeeds = state.runners.map(runner => runner ? runner.speed : null);
+}
+
+function applyRuns(runs){
+  if(!runs) return;
+  state.runs += runs;
+  state.runsByInning[state.inning - 1] += runs;
+  state.gameStats.runs += runs;
+  state.gameStats.earnedRuns += runs;
 }
 
 function startNewGame(){
@@ -260,7 +310,7 @@ function startNewGame(){
 
 function resumeSavedGame(){
   if(!saveData.activeGame || !profile){ renderStartOverlay(); return; }
-  state = { ...saveData.activeGame, busy:false, committed:false };
+  state = { ...normalizeGameState(saveData.activeGame), busy:false, committed:false };
   renderPitchButtons();
   buildZoneGrid();
   buildLineScore();
@@ -315,29 +365,30 @@ function updatePlayerCard(){
 }
 
 function updateScoreboard(){
-  $('sb-runs').textContent = state ? state.runs : '0';
-  $('sb-pitches').textContent = state ? state.pitchCount : '0';
-  $('sb-faced').textContent = state ? state.faced : '0';
-  $('sb-theme').textContent = profile ? ARCHETYPES[profile.archetype].label : '—';
   if(!state){
-    $('inning-badge').textContent = '로스터 준비 중';
-    for(let i = 0; i < 3; i++) $('mini-out' + i).className = 'dot mini-dot';
-    for(let i = 0; i < 2; i++) $('mini-str' + i).className = 'dot mini-dot';
-    for(let i = 0; i < 3; i++) $('mini-ball' + i).className = 'dot mini-dot';
+    $('scorebug-inning').textContent = '로스터 준비';
+    $('scorebug-outs').textContent = '0 OUT';
+    for(let i = 0; i < 3; i++) $('bug-out' + i).className = 'dot scorebug-dot';
+    for(let i = 0; i < 2; i++) $('bug-str' + i).className = 'dot scorebug-dot';
+    for(let i = 0; i < 3; i++) $('bug-ball' + i).className = 'dot scorebug-dot';
     return;
   }
-  $('inning-badge').textContent = state.betweenInnings ? `${state.inning + 1}회 준비` : `${state.inning}회 수비 · ${state.outs}사`;
-  for(let i = 0; i < 3; i++) $('mini-out' + i).className = 'dot mini-dot' + (state.outs > i ? ' out' : '');
-  for(let i = 0; i < 2; i++) $('mini-str' + i).className = 'dot mini-dot' + (state.strikes > i ? ' strike' : '');
-  for(let i = 0; i < 3; i++) $('mini-ball' + i).className = 'dot mini-dot' + (state.balls > i ? ' ball' : '');
+  $('scorebug-inning').textContent = state.betweenInnings ? `${state.inning + 1}회 준비` : `${state.inning}회 수비`;
+  $('scorebug-outs').textContent = `${state.outs} OUT`;
+  for(let i = 0; i < 3; i++) $('bug-out' + i).className = 'dot scorebug-dot' + (state.outs > i ? ' out' : '');
+  for(let i = 0; i < 2; i++) $('bug-str' + i).className = 'dot scorebug-dot' + (state.strikes > i ? ' strike' : '');
+  for(let i = 0; i < 3; i++) $('bug-ball' + i).className = 'dot scorebug-dot' + (state.balls > i ? ' ball' : '');
 }
 
 function updateRunners(){
-  const bases = state ? state.bases : [false,false,false];
+  const bases = state ? state.runners.map(Boolean) : [false,false,false];
   for(let i = 0; i < 3; i++) $('runner' + (i + 1)).setAttribute('opacity', bases[i] ? '1' : '0');
   ['base1','base2','base3'].forEach((id, index) => {
     $(id).setAttribute('fill', bases[index] ? '#6f0a1c' : '#4a2f10');
     $(id).setAttribute('stroke', bases[index] ? '#ef5f7a' : '#8a6a40');
+  });
+  ['bug-base1','bug-base2','bug-base3'].forEach((id, index) => {
+    $(id).classList.toggle('on', Boolean(bases[index]));
   });
 }
 
@@ -389,13 +440,23 @@ function updateStatPanels(){
   const outingMetrics = computeMetrics(outing);
   const careerMetrics = computeMetrics(profile ? profile.career : emptyStatLine());
   $('outing-grid').innerHTML = [
-    metricItem('IP', formatIP(outing.outsRecorded), 'accent'), metricItem('ERA', formatRate(outingMetrics.era), outingMetrics.era <= 3 ? 'safe' : outingMetrics.era >= 5 ? 'danger' : ''),
-    metricItem('WHIP', formatRate(outingMetrics.whip)), metricItem('K / BB', `${outing.strikeouts} / ${outing.walks}`),
-    metricItem('CSW%', formatPct(outingMetrics.csw)), metricItem('Zone%', formatPct(outingMetrics.zone)),
-    metricItem('Chase%', formatPct(outingMetrics.chase)), metricItem('Contact%', formatPct(outingMetrics.contact)),
-    metricItem('1st Strike%', formatPct(outingMetrics.firstStrike)), metricItem('AVG', formatShort(outingMetrics.avg)),
-    metricItem('OPS', formatShort(outingMetrics.ops)), metricItem('FIP', formatRate(outingMetrics.fip))
-  ].join('');
+    metricItem('실점', state ? state.runs : 0, 'accent'),
+    metricItem('투구수', state ? state.pitchCount : 0),
+    metricItem('상대 타자', state ? state.faced : 0),
+    metricItem('유형', profile ? ARCHETYPES[profile.archetype].label : '—'),
+    metricItem('IP', formatIP(outing.outsRecorded), 'accent'),
+    metricItem('ERA', formatRate(outingMetrics.era), outingMetrics.era <= 3 ? 'safe' : outingMetrics.era >= 5 ? 'danger' : ''),
+    metricItem('WHIP', formatRate(outingMetrics.whip)),
+    metricItem('K / BB', `${outing.strikeouts} / ${outing.walks}`),
+    metricItem('CSW%', formatPct(outingMetrics.csw)),
+    metricItem('Zone%', formatPct(outingMetrics.zone)),
+    metricItem('Chase%', formatPct(outingMetrics.chase)),
+    metricItem('Contact%', formatPct(outingMetrics.contact)),
+    metricItem('1st Strike%', formatPct(outingMetrics.firstStrike)),
+    metricItem('AVG', formatShort(outingMetrics.avg)),
+    metricItem('OPS', formatShort(outingMetrics.ops)),
+    metricItem('FIP', formatRate(outingMetrics.fip))
+    ].join('');
   $('career-grid').innerHTML = [
     metricItem('G', profile ? profile.career.games : 0, 'accent'), metricItem('IP', profile ? formatIP(profile.career.outsRecorded) : '0.0'),
     metricItem('ERA', formatRate(careerMetrics.era)), metricItem('WHIP', formatRate(careerMetrics.whip)),
@@ -407,6 +468,7 @@ function updateStatPanels(){
 }
 
 function refreshUI(){
+  syncStateRunners();
   updatePlayerCard();
   updateScoreboard();
   updateRunners();
@@ -457,19 +519,25 @@ function showResult(code, msg, sub){
 function addLog(text, type){
   const li = document.createElement('li');
   li.className = type === 'bad' ? 'bad' : type === 'good' ? 'good' : 'neut';
-  li.textContent = state ? `[${state.inning}회 / ${state.pitchCount}구] ${text}` : text;
+  li.textContent = state ? `[${state.inning}회 / ${state.pitchCount}구 / ${state.actionCount}액션] ${text}` : text;
   $('log-list').prepend(li);
 }
 
 function selectPitch(key){
   if(!state || state.gameEnded || state.busy || state.betweenInnings) return;
   state.selectedPitch = key;
+  if(key === 'pickoff'){
+    state.selectedZone = null;
+    document.querySelectorAll('.zone-cell').forEach(cell => cell.classList.remove('selected'));
+    showResult('', '견제 선택', '주자가 있는 베이스를 자동으로 견제합니다.');
+  }
   renderPitchButtons();
   checkReady();
 }
 
 function selectZone(zone){
   if(!state || state.gameEnded || state.busy || state.betweenInnings) return;
+  if(state.selectedPitch === 'pickoff') return;
   state.selectedZone = zone;
   document.querySelectorAll('.zone-cell').forEach(cell => cell.classList.remove('selected'));
   $('zone-' + zone).classList.add('selected');
@@ -484,7 +552,11 @@ function resetSelections(){
 }
 
 function checkReady(){
-  $('throw-btn').disabled = !(state && !state.busy && !state.betweenInnings && state.selectedPitch && state.selectedZone);
+  if(!state || state.busy || state.betweenInnings || !state.selectedPitch){
+    $('throw-btn').disabled = true;
+    return;
+  }
+  $('throw-btn').disabled = state.selectedPitch === 'pickoff' ? !state.runners.some(Boolean) : !state.selectedZone;
 }
 
 function pickWeighted(options){
@@ -494,10 +566,11 @@ function pickWeighted(options){
 }
 
 function getCommandModifier(){
+  const fatigueMods = Engine.getFatigueModifiers(state);
   const staminaPct = safeDivide(state.stamina, state.maxStamina);
-  if(staminaPct >= 0.72) return 1;
-  if(staminaPct <= 0.15) return 0.70;
-  return 0.70 + ((staminaPct - 0.15) / 0.57) * 0.30;
+  if(staminaPct >= 0.72) return fatigueMods.command;
+  if(staminaPct <= 0.15) return 0.70 * fatigueMods.command;
+  return (0.70 + ((staminaPct - 0.15) / 0.57) * 0.30) * fatigueMods.command;
 }
 
 function resolveActualZone(targetZoneNum, pitch){
@@ -583,15 +656,20 @@ function resetBatterAnimation(){
 function applyPitchDrain(){
   const trait = getArchetype();
   const heavyTax = state.pitchCount > 70 ? 1 + ((state.pitchCount - 70) * 0.02) : 1;
-  const drain = (state.pitchCount > 45 ? 3.0 : 1.7) * trait.drain * heavyTax;
+  const pitch = state.selectedPitch && PITCHES[state.selectedPitch];
+  const kindTax = pitch?.kind === 'fastball' ? 1.08 : pitch?.kind === 'breaking' ? 1.04 : 1.0;
+  const runnerTax = state.runners.some(Boolean) ? 1.1 : 1.0;
+  const drain = (state.pitchCount > 45 ? 3.0 : 1.7) * trait.drain * heavyTax * kindTax * runnerTax;
   state.stamina = Math.max(10, state.stamina - drain);
 }
 
 function recordPitchAnalytics(result){
   const stats = state.gameStats;
   stats.pitches++;
-  if(result.actualStrike){ stats.strikesThrown++; stats.zonePitches++; }
-  else { stats.ballsThrown++; stats.outZonePitches++; }
+  if(result.actualStrike) stats.strikesThrown++;
+  else stats.ballsThrown++;
+  if(result.actualInZone) stats.zonePitches++;
+  else stats.outZonePitches++;
   if(state.paFirstPitch){
     stats.firstPitchTotal++;
     if(result.actualStrike || ['called_k','whiff','foul','groundout','flyout','single','double','homerun'].includes(result.code)) stats.firstPitchStrikes++;
@@ -599,7 +677,7 @@ function recordPitchAnalytics(result){
   }
   if(result.swings){
     stats.swings++;
-    if(!result.actualStrike) stats.chaseSwings++;
+    if(!result.actualInZone) stats.chaseSwings++;
     if(result.code !== 'whiff') stats.contacts++;
   }
   if(result.code === 'called_k') stats.calledStrikes++;
@@ -610,30 +688,33 @@ function recordPitchAnalytics(result){
 function calcResult(pitchKey, targetZoneNum){
   const pitch = getPitchModel(pitchKey);
   const batter = state.batter;
+  const sequence = Engine.getPitchSequencing(state, pitchKey);
+  const fatigue = Engine.getFatigueModifiers(state);
   const actualZone = resolveActualZone(targetZoneNum, pitch);
   const zone = ZONES[actualZone];
+  const actualInZone = zone.isStrike > 0.5;
   const actualStrike = rnd() < zone.isStrike;
   let countMod = 1;
   if(state.strikes === 2) countMod = 1.28;
   else if(state.balls === 3) countMod = 0.70;
   else if(state.balls >= 2 && state.strikes === 0) countMod = 0.82;
-  const chaseBoost = !actualStrike && ZONES[targetZoneNum].danger < 0.3 ? 1.10 : 1.0;
+  const chaseBoost = (!actualStrike && ZONES[targetZoneNum].danger < 0.3 ? 1.10 : 1.0) * sequence.chase;
   const swingProb = clamp((actualStrike ? batter.swingStrike : batter.swingBall) * countMod * chaseBoost, 0.03, 0.97);
   const swings = rnd() < swingProb;
   const locationText = actualZone === targetZoneNum ? `${actualZone}번 코스 적중` : `${targetZoneNum}번 노림 → 실제 ${actualZone}번`;
   if(!swings){
-    return actualStrike ? { code:'called_k', msg:'루킹 스트라이크!', sub:'타자가 그냥 지켜봤다.', actualZone, actualStrike, swings, reaction:'look', locationText, pitch }
-      : { code:'ball', msg:'볼', sub:'타자가 침착하게 골라냈다.', actualZone, actualStrike, swings, reaction:'look', locationText, pitch };
+    return actualStrike ? { code:'called_k', msg:'루킹 스트라이크!', sub:'타자가 그냥 지켜봤다.', actualZone, actualInZone, actualStrike, swings, reaction:'look', locationText, pitch }
+      : { code:'ball', msg:'볼', sub:'타자가 침착하게 골라냈다.', actualZone, actualInZone, actualStrike, swings, reaction:'look', locationText, pitch };
   }
   const aheadBonus = (state.strikes > state.balls && pitch.kind !== 'fastball') ? 1.22 : 1.0;
   const cornerBonus = zone.danger < 0.3 ? 1.20 : zone.danger > 0.9 ? 0.82 : 1.0;
   const chaseWhiff = actualStrike ? 1.0 : 1.08;
-  const whiffProb = Math.min((1 - batter.contact) * pitch.whiffMod * aheadBonus * cornerBonus * chaseWhiff, 0.72);
+  const whiffProb = Math.min((1 - batter.contact) * pitch.whiffMod * aheadBonus * cornerBonus * chaseWhiff * sequence.whiff * fatigue.whiff, 0.72);
   if(rnd() < whiffProb){
     const messages = [`헛스윙! ${pitch.name}에 완전히 속았다.`, `스윙 앤 미스! 날카로운 ${pitch.name}.`, `배트가 허공을 갈랐다.`];
-    return { code:'whiff', msg:messages[Math.floor(rnd() * messages.length)], sub:'', actualZone, actualStrike, swings, reaction:'whiff', locationText, pitch };
+    return { code:'whiff', msg:messages[Math.floor(rnd() * messages.length)], sub:'', actualZone, actualInZone, actualStrike, swings, reaction:'whiff', locationText, pitch };
   }
-  const quality = zone.danger * batter.power * pitch.powerMod * (actualZone === targetZoneNum ? 1.0 : 1.18);
+  const quality = zone.danger * batter.power * pitch.powerMod * fatigue.damage * sequence.damage * (actualZone === targetZoneNum ? 1.0 : 1.18);
   if(quality > 0.84 && rnd() < 0.12 * quality){
     return { code:'homerun', msg:'홈런!!!', sub:'실투를 놓치지 않았다.', actualZone, actualStrike, swings, reaction:'contact', locationText, pitch };
   }
@@ -645,7 +726,7 @@ function calcResult(pitchKey, targetZoneNum){
   const total = foulP + goP + foP + sglP + dblP;
   const r = rnd();
   let acc = 0;
-  const outcome = (code, msg, sub) => ({ code, msg, sub, actualZone, actualStrike, swings, reaction:'contact', locationText, pitch });
+  const outcome = (code, msg, sub) => ({ code, msg, sub, actualZone, actualInZone, actualStrike, swings, reaction:'contact', locationText, pitch });
   acc += foulP / total; if(r < acc) return outcome('foul', '파울볼!', '타구가 선 밖으로 빠졌다.');
   acc += goP / total; if(r < acc) return outcome('groundout', '땅볼 아웃!', '내야수가 잡아냈다.');
   acc += foP / total; if(r < acc) return outcome('flyout', '뜬공 아웃!', '외야수가 처리했다.');
@@ -654,53 +735,19 @@ function calcResult(pitchKey, targetZoneNum){
 }
 
 function handleWalk(){
-  const bases = state.bases;
-  let runs = 0;
-  let msg = '볼넷! 타자 1루 출루.';
-  if(bases[0] && bases[1] && bases[2]){ runs = 1; msg = '볼넷! 만루 밀어내기 실점.'; }
-  else {
-    if(bases[1] && bases[0]) state.bases[2] = true;
-    if(bases[0]) state.bases[1] = true;
-    state.bases[0] = true;
-  }
-  if(runs){
-    state.runs += runs;
-    state.runsByInning[state.inning - 1] += runs;
-    state.gameStats.runs += runs;
-    state.gameStats.earnedRuns += runs;
-  }
+  const walk = Engine.forceWalk(state, state.batter);
+  const runs = walk.runs;
+  applyRuns(runs);
   state.gameStats.walks++;
-  return { msg, runs };
+  return walk;
 }
 
 function handleHit(code){
-  const bases = state.bases;
-  let runs = 0;
-  if(code === 'homerun'){
-    runs = bases.filter(Boolean).length + 1;
-    state.bases = [false,false,false];
-    state.gameStats.hits++; state.gameStats.homers++;
-  } else if(code === 'double'){
-    const next = [false,false,false];
-    if(bases[2]) runs++;
-    if(bases[1]) runs++;
-    if(bases[0]){ if(rnd() < 0.48) runs++; else next[2] = true; }
-    next[1] = true;
-    state.bases = next;
-    state.gameStats.hits++; state.gameStats.doubles++;
-  } else if(code === 'single'){
-    const next = [false,false,false];
-    if(bases[2]) runs++;
-    if(bases[1]){ if(rnd() < 0.56) runs++; else next[2] = true; }
-    if(bases[0]){ if(rnd() < 0.28) next[2] = true; else next[1] = true; }
-    next[0] = true;
-    state.bases = next;
-    state.gameStats.hits++; state.gameStats.singles++;
-  }
-  state.runs += runs;
-  state.runsByInning[state.inning - 1] += runs;
-  state.gameStats.runs += runs;
-  state.gameStats.earnedRuns += runs;
+  const runs = Engine.resolveHit(state, code, state.batter, rnd);
+  applyRuns(runs);
+  if(code === 'homerun'){ state.gameStats.hits++; state.gameStats.homers++; }
+  else if(code === 'double'){ state.gameStats.hits++; state.gameStats.doubles++; }
+  else if(code === 'single'){ state.gameStats.hits++; state.gameStats.singles++; }
   state.gameStats.ballsInPlay++;
   return runs;
 }
@@ -737,13 +784,25 @@ function finishPlateAppearance(result){
     showResult(result.code, result.msg, `${result.locationText} · ${result.sub}`);
     addLog(`${result.pitch.name} / ${result.locationText} / 파울`, 'neut');
   } else if(result.code === 'groundout'){
-    plateEnded = true; state.outs++; stats.outsRecorded++; stats.groundouts++; stats.ballsInPlay++;
-    showResult(result.code, result.msg, `${result.locationText} · ${result.sub}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / 땅볼 아웃`, 'good');
+    plateEnded = true;
+    const ground = Engine.resolveGroundout(state, rnd);
+    state.outs += ground.outsAdded;
+    stats.outsRecorded += ground.outsAdded;
+    stats.groundouts++;
+    stats.ballsInPlay++;
+    applyRuns(ground.runs);
+    showResult(result.code, result.msg, `${result.locationText} · ${ground.sub}`);
+    addLog(`${result.pitch.name} / ${result.locationText} / ${ground.logSuffix}${ground.runs ? ` · ${ground.runs}점` : ''}`, ground.runs ? 'bad' : 'good');
   } else if(result.code === 'flyout'){
-    plateEnded = true; state.outs++; stats.outsRecorded++; stats.flyouts++; stats.ballsInPlay++;
-    showResult(result.code, result.msg, `${result.locationText} · ${result.sub}`);
-    addLog(`${result.pitch.name} / ${result.locationText} / 뜬공 아웃`, 'good');
+    plateEnded = true;
+    const fly = Engine.resolveFlyout(state, rnd);
+    state.outs += fly.outsAdded;
+    stats.outsRecorded += fly.outsAdded;
+    stats.flyouts++;
+    stats.ballsInPlay++;
+    applyRuns(fly.runs);
+    showResult(result.code, result.msg, `${result.locationText} · ${fly.sub}`);
+    addLog(`${result.pitch.name} / ${result.locationText} / ${fly.logSuffix}${fly.runs ? ` · ${fly.runs}점` : ''}`, fly.runs ? 'bad' : 'good');
   } else if(['single','double','homerun'].includes(result.code)){
     plateEnded = true;
     const runs = handleHit(result.code);
@@ -751,6 +810,7 @@ function finishPlateAppearance(result){
     showResult(result.code, result.msg, `${result.locationText} · ${result.sub}${tail}`);
     addLog(`${result.pitch.name} / ${result.locationText} / ${result.msg}${tail}`, runs ? 'bad' : 'neut');
   }
+  if(plateEnded) stats.battersFaced++;
   return plateEnded;
 }
 
@@ -768,7 +828,7 @@ function continueToNextInning(){
   if(!state) return;
   betweenInningRecovery();
   state.inning++;
-  state.outs = 0; state.balls = 0; state.strikes = 0; state.bases = [false,false,false];
+  state.outs = 0; state.balls = 0; state.strikes = 0; state.bases = [false,false,false]; state.runners = [null,null,null]; state.runnerSpeeds = [null,null,null]; state.pickoff_attempts = [0,0,0];
   state.betweenInnings = false; state.pendingPull = false;
   loadNextBatter();
   resetSelections();
@@ -802,12 +862,48 @@ function endOuting(reason){
 }
 
 async function throwPitch(){
-  if(!state || state.busy || state.betweenInnings || !state.selectedPitch || !state.selectedZone) return;
+  if(!state || state.busy || state.betweenInnings || !state.selectedPitch) return;
   state.busy = true;
   $('throw-btn').disabled = true;
+  state.actionCount++;
+  if(state.selectedPitch === 'pickoff'){
+    state.stamina = Math.max(0, state.stamina - 1);
+    const pickoff = Engine.resolvePickoff(state, rnd);
+    state.outs += pickoff.outsAdded || 0;
+    state.gameStats.outsRecorded += pickoff.outsAdded || 0;
+    applyRuns(pickoff.runs || 0);
+    syncStateRunners();
+    updateRunners();
+    showReaction('idle', pickoff.sub, false);
+    showResult('', pickoff.msg, pickoff.sub);
+    addLog(pickoff.log, pickoff.tone);
+    resetSelections();
+    if(state.outs >= 3){
+      if(state.runsByInning[state.inning - 1] === 0) state.gameStats.scorelessInnings++;
+      state.gameStats.inningsCompleted++;
+      state.busy = false;
+      persistSave();
+      if(state.inning >= 9) endOuting('complete');
+      else if(state.pendingPull) endOuting('manager');
+      else renderBetweenInningOverlay();
+      return;
+    }
+    state.busy = false;
+    refreshUI();
+    persistSave();
+    return;
+  }
+  if(!state.selectedZone){ state.busy = false; return; }
   state.pitchCount++;
   applyPitchDrain();
   const result = calcResult(state.selectedPitch, state.selectedZone);
+  Engine.recordPitchHistory(state, {
+    pitchKey:state.selectedPitch,
+    kind:result.pitch.kind,
+    targetZone:state.selectedZone,
+    actualZone:result.actualZone,
+    code:result.code
+  });
   recordPitchAnalytics(result);
   await animateBall(result.actualZone);
   flashZone(result.actualZone, result.code);
@@ -839,7 +935,7 @@ function boot(){
   buildLineScore();
   renderPitchButtons();
   if(profile && saveData.activeGame){
-    state = { ...saveData.activeGame, busy:false, committed:false };
+    state = { ...normalizeGameState(saveData.activeGame), busy:false, committed:false };
     refreshUI();
     showReaction('idle', '저장된 등판이 있습니다. 이어서 시작할 수 있습니다.', false);
     renderStartOverlay();
