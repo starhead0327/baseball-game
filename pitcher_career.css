@@ -1028,3 +1028,8 @@ header h1{
     max-width:300px;
   }
 }
+
+#hint-panel li::before{
+  content:'›';
+  color:#f5c84288;
+}

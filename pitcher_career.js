@@ -16,6 +16,21 @@ const PITCHES = {
 
 const PICKOFF = {name:'견제',emoji:'🫳',note:'주자 자동 견제',kind:'pickoff'};
 
+const LEAGUES = {
+  rookie:{label:'루키 리그',emoji:'🌱',contact:0.94,power:0.90,eye:0.93,steal:0.92,seasonGames:8,runSupport:4.9},
+  college:{label:'대학 리그',emoji:'🎓',contact:1.00,power:1.00,eye:1.00,steal:1.00,seasonGames:10,runSupport:4.3},
+  pro:{label:'프로 리그',emoji:'🏟️',contact:1.08,power:1.12,eye:1.06,steal:1.08,seasonGames:12,runSupport:3.8}
+};
+
+const TEAMS = [
+  {key:'seoul',name:'서울 스톰',emoji:'⚡',lineup:['contact','eye','aggressive','power','power','contact','aggressive','eye','contact']},
+  {key:'busan',name:'부산 웨이브',emoji:'🌊',lineup:['aggressive','contact','power','contact','power','eye','contact','aggressive','eye']},
+  {key:'daejeon',name:'대전 코멧',emoji:'☄️',lineup:['eye','contact','power','aggressive','contact','power','eye','contact','aggressive']},
+  {key:'daegu',name:'대구 블레이즈',emoji:'🔥',lineup:['aggressive','power','contact','power','eye','aggressive','contact','eye','contact']},
+  {key:'incheon',name:'인천 파일럿',emoji:'✈️',lineup:['contact','aggressive','eye','power','contact','power','aggressive','contact','eye']},
+  {key:'gwangju',name:'광주 가디언즈',emoji:'🛡️',lineup:['eye','contact','contact','power','aggressive','eye','power','contact','aggressive']}
+];
+
 const ZONES = {
   1:{label:'좌상',isStrike:0.18,danger:0.28,command:0.60},
   2:{label:'중상',isStrike:0.82,danger:0.50,command:0.87},
@@ -47,13 +62,24 @@ const MISS_MAP = {
 };
 
 const BATTERS = [
-  {name:'파워 타자',emoji:'💪',desc:'장타율 높음 · 삼진도 많음',swingBall:0.28,swingStrike:0.82,contact:0.62,power:1.60,threat:0.82,speed:'LOW'},
-  {name:'컨택 타자',emoji:'🎯',desc:'삼진 적음 · 어디든 잘 맞춤',swingBall:0.14,swingStrike:0.88,contact:0.87,power:0.78,threat:0.64,speed:'MID'},
-  {name:'선구안 타자',emoji:'👁️',desc:'볼넷 잘 고름 · 볼에 거의 안 속음',swingBall:0.06,swingStrike:0.70,contact:0.80,power:1.00,threat:0.70,speed:'MID'},
-  {name:'적극적 타자',emoji:'🔥',desc:'볼도 공격적으로 스윙',swingBall:0.38,swingStrike:0.92,contact:0.69,power:1.12,threat:0.58,speed:'HIGH'}
+  {key:'power',name:'파워 타자',emoji:'💪',desc:'장타율 높음 · 삼진도 많음',swingBall:0.28,swingStrike:0.82,contact:0.62,power:1.60,threat:0.82,speed:'LOW',aggression:0.34,iq:0.55,steal:0.18},
+  {key:'contact',name:'컨택 타자',emoji:'🎯',desc:'삼진 적음 · 어디든 잘 맞춤',swingBall:0.14,swingStrike:0.88,contact:0.87,power:0.78,threat:0.64,speed:'MID',aggression:0.48,iq:0.74,steal:0.40},
+  {key:'eye',name:'선구안 타자',emoji:'👁️',desc:'볼넷 잘 고름 · 볼에 거의 안 속음',swingBall:0.06,swingStrike:0.70,contact:0.80,power:1.00,threat:0.70,speed:'MID',aggression:0.33,iq:0.82,steal:0.32},
+  {key:'aggressive',name:'적극적 타자',emoji:'🔥',desc:'볼도 공격적으로 스윙',swingBall:0.38,swingStrike:0.92,contact:0.69,power:1.12,threat:0.58,speed:'HIGH',aggression:0.76,iq:0.48,steal:0.74}
 ];
 
-const NUMERIC_FIELDS = ['games','starts','outsRecorded','pitches','battersFaced','runs','earnedRuns','hits','singles','doubles','homers','walks','strikeouts','swings','contacts','calledStrikes','swingingStrikes','foulStrikes','strikesThrown','ballsThrown','zonePitches','outZonePitches','chaseSwings','firstPitchStrikes','firstPitchTotal','groundouts','flyouts','ballsInPlay','scorelessInnings','inningsCompleted'];
+const BATTER_MAP = Object.fromEntries(BATTERS.map(batter => [batter.key, batter]));
+
+const GOAL_TEMPLATES = [
+  {key:'strikeouts',label:'삼진 6개 이상',target:6,reward:60,read:state => state.gameStats.strikeouts},
+  {key:'quality',label:'실점 2점 이하',target:2,reward:55,read:state => state.runs,inverse:true},
+  {key:'efficiency',label:'투구수 90개 이하',target:90,reward:45,read:state => state.pitchCount,inverse:true},
+  {key:'firstStrike',label:'1구 스트라이크 60% 이상',target:0.60,reward:45,read:state => computeMetrics(state.gameStats).firstStrike},
+  {key:'csw',label:'CSW 28% 이상',target:0.28,reward:50,read:state => computeMetrics(state.gameStats).csw},
+  {key:'scoreless',label:'3이닝 이상 무실점',target:9,reward:50,read:state => state.gameStats.outsRecorded,inverse:false,requiresRunsZero:true}
+];
+
+const NUMERIC_FIELDS = ['games','starts','outsRecorded','pitches','battersFaced','runs','earnedRuns','hits','singles','doubles','homers','walks','strikeouts','swings','contacts','calledStrikes','swingingStrikes','foulStrikes','strikesThrown','ballsThrown','zonePitches','outZonePitches','chaseSwings','firstPitchStrikes','firstPitchTotal','groundouts','flyouts','ballsInPlay','scorelessInnings','inningsCompleted','wins','losses','noDecisions','saves','blownSaves'];
 
 let saveData = { profile:null, activeGame:null };
 let profile = null;
@@ -68,9 +94,10 @@ const formatIP = outs => `${Math.floor(outs / 3)}.${outs % 3}`;
 const formatPct = value => `${(value * 100).toFixed(1)}%`;
 const formatRate = value => Number.isFinite(value) ? value.toFixed(2) : '0.00';
 const formatShort = value => !Number.isFinite(value) ? '0.00' : (value >= 1 ? value.toFixed(2) : value.toFixed(3));
+const decisionLabel = value => ({ PENDING:'진행중', WIN:'승리투수', LOSS:'패전투수', ND:'노디시전', SAVE:'세이브' }[value] || value);
 
 function emptyStatLine(){
-  return {games:0,starts:0,outsRecorded:0,pitches:0,battersFaced:0,runs:0,earnedRuns:0,hits:0,singles:0,doubles:0,homers:0,walks:0,strikeouts:0,swings:0,contacts:0,calledStrikes:0,swingingStrikes:0,foulStrikes:0,strikesThrown:0,ballsThrown:0,zonePitches:0,outZonePitches:0,chaseSwings:0,firstPitchStrikes:0,firstPitchTotal:0,groundouts:0,flyouts:0,ballsInPlay:0,scorelessInnings:0,inningsCompleted:0};
+  return {games:0,starts:0,outsRecorded:0,pitches:0,battersFaced:0,runs:0,earnedRuns:0,hits:0,singles:0,doubles:0,homers:0,walks:0,strikeouts:0,swings:0,contacts:0,calledStrikes:0,swingingStrikes:0,foulStrikes:0,strikesThrown:0,ballsThrown:0,zonePitches:0,outZonePitches:0,chaseSwings:0,firstPitchStrikes:0,firstPitchTotal:0,groundouts:0,flyouts:0,ballsInPlay:0,scorelessInnings:0,inningsCompleted:0,wins:0,losses:0,noDecisions:0,saves:0,blownSaves:0};
 }
 
 function mergeStatLine(target, source){
@@ -108,6 +135,150 @@ function computeMetrics(stat){
   };
 }
 
+function createDefaultProgress(){
+  return { level:1, xp:0, skillPoints:0, upgrades:{ control:0, whiff:0, stamina:0, velocity:0 } };
+}
+
+function createSeason(leagueKey, year = 1){
+  const league = LEAGUES[leagueKey] || LEAGUES.college;
+  const teams = TEAMS.slice();
+  const schedule = Array.from({ length:league.seasonGames }, (_, index) => {
+    const team = teams[index % teams.length];
+    return team.key;
+  });
+  return {
+    active:true,
+    year,
+    league:leagueKey,
+    currentGame:0,
+    wins:0,
+    losses:0,
+    goalsCompleted:0,
+    schedule,
+    stats:emptyStatLine()
+  };
+}
+
+function normalizeProfile(rawProfile){
+  if(!rawProfile) return null;
+  const progress = { ...createDefaultProgress(), ...(rawProfile.progress || {}) };
+  progress.upgrades = { ...createDefaultProgress().upgrades, ...(rawProfile.progress?.upgrades || {}) };
+  const leagueKey = rawProfile.league && LEAGUES[rawProfile.league] ? rawProfile.league : 'college';
+  const season = rawProfile.season
+    ? { ...createSeason(leagueKey, rawProfile.season.year || 1), ...rawProfile.season, stats:{ ...emptyStatLine(), ...(rawProfile.season.stats || {}) } }
+    : createSeason(leagueKey, 1);
+  return {
+    ...rawProfile,
+    appearanceRole:rawProfile.appearanceRole || 'starter',
+    league:leagueKey,
+    career:{ ...emptyStatLine(), ...(rawProfile.career || {}) },
+    progress,
+    season
+  };
+}
+
+function getLeagueConfig(){
+  const key = profile?.league || 'college';
+  return LEAGUES[key] || LEAGUES.college;
+}
+
+function getProgressBonuses(){
+  const upgrades = profile?.progress?.upgrades || createDefaultProgress().upgrades;
+  return {
+    control:1 + upgrades.control * 0.012,
+    whiff:1 + upgrades.whiff * 0.014,
+    stamina:upgrades.stamina * 2,
+    velocity:Math.floor(upgrades.velocity / 2)
+  };
+}
+
+function chooseAutoUpgrade(){
+  const upgrades = profile.progress.upgrades;
+  if(profile.archetype === 'command') upgrades.control++;
+  else if(profile.archetype === 'ace') upgrades.velocity++;
+  else if(profile.archetype === 'breaker') upgrades.whiff++;
+  else upgrades.stamina++;
+}
+
+function xpForNextLevel(level){
+  return 100 + ((level - 1) * 35);
+}
+
+function applyProfileXp(xpGain){
+  if(!profile) return { levelUps:0 };
+  profile.progress.xp += xpGain;
+  let levelUps = 0;
+  while(profile.progress.xp >= xpForNextLevel(profile.progress.level)){
+    profile.progress.xp -= xpForNextLevel(profile.progress.level);
+    profile.progress.level++;
+    profile.progress.skillPoints++;
+    levelUps++;
+    chooseAutoUpgrade();
+  }
+  return { levelUps };
+}
+
+function cloneBatterTemplate(key){
+  const base = BATTER_MAP[key] || BATTERS[0];
+  return { ...base };
+}
+
+function hydrateGoal(rawGoal){
+  const template = GOAL_TEMPLATES.find(goal => goal.key === rawGoal.key);
+  return template ? { ...template, ...rawGoal } : rawGoal;
+}
+
+function hydrateGoals(goals){
+  return (goals || []).map(hydrateGoal);
+}
+
+function buildOpponentTeam(teamKey, leagueKey){
+  const league = LEAGUES[leagueKey] || LEAGUES.college;
+  const team = TEAMS.find(item => item.key === teamKey) || TEAMS[0];
+  const lineup = team.lineup.map((batterKey, index) => {
+    const base = cloneBatterTemplate(batterKey);
+    return {
+      ...base,
+      swingBall:clamp(base.swingBall * league.eye, 0.04, 0.55),
+      swingStrike:clamp(base.swingStrike * league.contact, 0.55, 0.97),
+      contact:clamp(base.contact * league.contact, 0.50, 0.95),
+      power:clamp(base.power * league.power, 0.65, 1.95),
+      threat:clamp(base.threat * ((league.contact + league.power) / 2), 0.45, 0.95),
+      steal:clamp(base.steal * league.steal, 0.08, 0.90),
+      teamName:team.name,
+      teamEmoji:team.emoji,
+      spot:index + 1
+    };
+  });
+  return { ...team, lineup };
+}
+
+function assignOutingGoals(){
+  const pool = GOAL_TEMPLATES.slice().sort(() => rnd() - 0.5);
+  return hydrateGoals(pool.slice(0, 3).map(goal => ({ ...goal, completed:false })));
+}
+
+function evaluateGoal(goal, currentState){
+  const value = goal.read(currentState);
+  if(goal.requiresRunsZero) return currentState.runs === 0 && value >= goal.target;
+  return goal.inverse ? value <= goal.target : value >= goal.target;
+}
+
+function goalsProgressText(){
+  if(!state?.goals?.length) return '목표 없음';
+  return state.goals.map(goal => `${goal.completed ? '완료' : '진행'} · ${goal.label}`).join(' / ');
+}
+
+function ensureSeasonReady(){
+  if(!profile) return;
+  if(!profile.season || !profile.season.active){
+    profile.season = createSeason(profile.league, (profile.season?.year || 0) + 1);
+  }
+  if(profile.season.currentGame >= profile.season.schedule.length){
+    profile.season = createSeason(profile.league, profile.season.year + 1);
+  }
+}
+
 function archetypeSummary(key){
   const a = ARCHETYPES[key];
   if(!a) return '';
@@ -121,11 +292,26 @@ function loadSave(){
   } catch(error){
     saveData = { profile:null, activeGame:null };
   }
-  profile = saveData.profile || null;
+  profile = normalizeProfile(saveData.profile || null);
 }
 
 function normalizeGameState(gameState){
-  return Engine.normalizeGameState(gameState);
+  const normalized = Engine.normalizeGameState(gameState);
+  if(!normalized) return null;
+  return {
+    teamRuns:0,
+    teamRunsByInning:Array(12).fill(0),
+    bullpenRating:1,
+    teamOffenseRating:1,
+    opponentBullpenRating:1,
+    decision:'PENDING',
+    leadTakenWhilePitching:false,
+    lossCharged:false,
+    saveOpportunity:false,
+    blownSave:false,
+    appearanceRole:profile?.appearanceRole || 'starter',
+    ...normalized
+  };
 }
 
 function persistSave(){
@@ -148,8 +334,15 @@ function getArchetype(){ return profile ? ARCHETYPES[profile.archetype] : ARCHET
 function getPitchModel(key){
   const base = PITCHES[key];
   const trait = getArchetype();
+  const bonus = getProgressBonuses();
   const breakingBonus = base.kind === 'breaking' ? (trait.breaking || 1) : 1;
-  return { ...base, speed:`${base.velo + trait.velo}km/h`, controlMod:base.controlMod * trait.control, whiffMod:base.whiffMod * trait.whiff * breakingBonus, powerMod:base.powerMod * trait.damage };
+  return {
+    ...base,
+    speed:`${base.velo + trait.velo + bonus.velocity}km/h`,
+    controlMod:base.controlMod * trait.control * bonus.control,
+    whiffMod:base.whiffMod * trait.whiff * breakingBonus * bonus.whiff,
+    powerMod:base.powerMod * trait.damage
+  };
 }
 
 function buildZoneGrid(){
@@ -190,12 +383,26 @@ function renderPitchButtons(){
 }
 
 function createProfileFromForm(){
+  const existing = profile;
   const name = $('profile-name').value.trim();
   const number = clamp(Number($('profile-number').value || 18), 0, 999);
   const handedness = $('profile-hand').value;
   const archetype = $('profile-archetype').value;
+  const league = $('profile-league').value;
+  const appearanceRole = $('profile-role').value;
   if(!name){ alert('투수 이름을 입력하세요.'); return false; }
-  profile = { name, number, handedness, archetype, createdAt:new Date().toISOString(), career:emptyStatLine() };
+  profile = normalizeProfile({
+    name,
+    number,
+    handedness,
+    archetype,
+    league,
+    appearanceRole,
+    createdAt:existing?.createdAt || new Date().toISOString(),
+    career:existing?.career || emptyStatLine(),
+    progress:existing?.progress || createDefaultProgress(),
+    season:existing?.season?.league === league ? existing.season : createSeason(league, (existing?.season?.year || 0) + 1)
+  });
   state = null;
   persistSave();
   startNewGame();
@@ -219,14 +426,17 @@ function hideOverlay(){ $('overlay').style.display = 'none'; }
 
 function renderStartOverlay(){
   const saved = profile;
+  const season = saved?.season;
   showOverlay('⚾ 커리어 투수 시뮬레이터', `
     <div>나만의 투수를 생성하고, 모든 등판 기록을 누적하세요. 기록은 이 브라우저의 <strong style="color:var(--accent)">localStorage</strong>에 저장됩니다.</div>
-    ${saved ? `<div class="overlay-card"><h3>${ARCHETYPES[saved.archetype].emoji} ${saved.name} #${saved.number}</h3><div>${saved.handedness} / ${ARCHETYPES[saved.archetype].label}</div><div class="summary-grid"><div class="summary-chip"><div class="label">G</div><div class="value">${saved.career.games}</div></div><div class="summary-chip"><div class="label">IP</div><div class="value">${formatIP(saved.career.outsRecorded)}</div></div><div class="summary-chip"><div class="label">ERA</div><div class="value">${formatRate(computeMetrics(saved.career).era)}</div></div></div></div>` : ''}
+    ${saved ? `<div class="overlay-card"><h3>${ARCHETYPES[saved.archetype].emoji} ${saved.name} #${saved.number}</h3><div>${saved.handedness} / ${ARCHETYPES[saved.archetype].label} / ${getLeagueConfig().label} / ${saved.appearanceRole === 'closer' ? '마무리' : '선발'}</div><div class="summary-grid"><div class="summary-chip"><div class="label">LV</div><div class="value">${saved.progress.level}</div></div><div class="summary-chip"><div class="label">G</div><div class="value">${saved.career.games}</div></div><div class="summary-chip"><div class="label">IP</div><div class="value">${formatIP(saved.career.outsRecorded)}</div></div><div class="summary-chip"><div class="label">ERA</div><div class="value">${formatRate(computeMetrics(saved.career).era)}</div></div></div><div class="overlay-note">시즌 ${season.year} · ${season.wins}승 ${season.losses}패 · ${season.currentGame}/${season.schedule.length} 경기 진행</div></div>` : ''}
     <div class="form-grid">
       <div class="field"><label>이름</label><input id="profile-name" value="${saved ? saved.name : '에이스'}" maxlength="16"/></div>
       <div class="field"><label>등번호</label><input id="profile-number" type="number" value="${saved ? saved.number : 18}" min="0" max="999"/></div>
       <div class="field"><label>투구 손</label><select id="profile-hand"><option value="우투" ${saved?.handedness === '우투' ? 'selected' : ''}>우투</option><option value="좌투" ${saved?.handedness === '좌투' ? 'selected' : ''}>좌투</option><option value="사이드암" ${saved?.handedness === '사이드암' ? 'selected' : ''}>사이드암</option></select></div>
       <div class="field"><label>아키타입</label><select id="profile-archetype" onchange="previewArchetype()">${Object.entries(ARCHETYPES).map(([key, value]) => `<option value="${key}" ${saved?.archetype === key || (!saved && key === 'command') ? 'selected' : ''}>${value.label}</option>`).join('')}</select></div>
+      <div class="field"><label>리그 난이도</label><select id="profile-league">${Object.entries(LEAGUES).map(([key, value]) => `<option value="${key}" ${saved?.league === key || (!saved && key === 'college') ? 'selected' : ''}>${value.label}</option>`).join('')}</select></div>
+      <div class="field"><label>등판 역할</label><select id="profile-role"><option value="starter" ${saved?.appearanceRole !== 'closer' ? 'selected' : ''}>선발</option><option value="closer" ${saved?.appearanceRole === 'closer' ? 'selected' : ''}>마무리</option></select></div>
     </div>
     <div id="archetype-preview">${archetypeSummary(saved?.archetype || 'command')}</div>
     ${saveData.activeGame ? `<div class="overlay-note">진행 중이던 등판이 저장되어 있습니다. 이어서 할 수 있습니다.</div>` : ''}
@@ -235,6 +445,8 @@ function renderStartOverlay(){
 
 function makeFreshState(){
   const trait = getArchetype();
+  const bonus = getProgressBonuses();
+  const role = profile?.appearanceRole || 'starter';
   return {
     inning:1,
     outs:0,
@@ -257,15 +469,38 @@ function makeFreshState(){
     pendingPull:false,
     gameEnded:false,
     committed:false,
-    stamina:trait.maxStamina,
-    maxStamina:trait.maxStamina,
+    appearanceRole:role,
+    stamina:trait.maxStamina + bonus.stamina,
+    maxStamina:trait.maxStamina + bonus.stamina,
     batter:null,
+    opponent:null,
+    lineupSpot:0,
+    goals:[],
+    supportRuns:0,
+    winOutcome:null,
+    teamRuns:0,
+    teamRunsByInning:Array(12).fill(0),
+    bullpenRating:1,
+    teamOffenseRating:1,
+    opponentBullpenRating:1,
+    decision:'PENDING',
+    leadTakenWhilePitching:false,
+    lossCharged:false,
+    saveOpportunity:false,
+    blownSave:false,
     paFirstPitch:true,
     gameStats:emptyStatLine()
   };
 }
 
-function pickBatter(){ return { ...BATTERS[Math.floor(Math.random() * BATTERS.length)] }; }
+function pickBatter(){
+  if(state?.opponent?.lineup?.length){
+    const batter = state.opponent.lineup[state.lineupSpot % state.opponent.lineup.length];
+    state.lineupSpot = (state.lineupSpot + 1) % state.opponent.lineup.length;
+    return { ...batter };
+  }
+  return { ...BATTERS[Math.floor(Math.random() * BATTERS.length)] };
+}
 
 function loadNextBatter(){
   state.batter = pickBatter();
@@ -285,24 +520,242 @@ function syncStateRunners(){
 
 function applyRuns(runs){
   if(!runs) return;
+  const beforeTeam = state.teamRuns;
+  const beforeOpp = state.runs;
   state.runs += runs;
   state.runsByInning[state.inning - 1] += runs;
   state.gameStats.runs += runs;
   state.gameStats.earnedRuns += runs;
+  if(beforeTeam > beforeOpp && state.runs >= state.teamRuns){
+    state.leadTakenWhilePitching = false;
+    state.lossCharged = true;
+    if(state.saveOpportunity) state.blownSave = true;
+  }
+}
+
+function applyTeamRuns(runs, inning){
+  if(!runs) return;
+  const beforeTeam = state.teamRuns;
+  const beforeOpp = state.runs;
+  state.teamRuns += runs;
+  state.teamRunsByInning[inning - 1] = (state.teamRunsByInning[inning - 1] || 0) + runs;
+  if(beforeTeam <= beforeOpp && state.teamRuns > state.runs){
+    state.leadTakenWhilePitching = true;
+  }
+}
+
+function prepareOutingContext(){
+  ensureSeasonReady();
+  const season = profile.season;
+  const opponentKey = season.schedule[season.currentGame % season.schedule.length];
+  const league = getLeagueConfig();
+  return {
+    seasonGame:season.currentGame + 1,
+    opponent:buildOpponentTeam(opponentKey, profile.league),
+    goals:assignOutingGoals(),
+    teamOffenseRating:clamp((league.runSupport / 4.2) + (profile.progress.level * 0.01), 0.85, 1.35),
+    bullpenRating:clamp(1.02 + (profile.progress.upgrades.control * 0.01), 0.92, 1.18),
+    opponentBullpenRating:clamp(1.0 + ((season.currentGame % 3) * 0.04), 0.94, 1.16)
+  };
+}
+
+function seedCloserAppearance(context){
+  state.inning = 9;
+  state.teamRuns = 2 + Math.floor(rnd() * 4);
+  state.runs = Math.max(0, state.teamRuns - (1 + Math.floor(rnd() * 3)));
+  state.saveOpportunity = state.teamRuns > state.runs && (state.teamRuns - state.runs) <= 3;
+  for(let i = 0; i < 8; i++){
+    const teamChunk = Math.max(0, Math.round((state.teamRuns * ((i + 1) / 8)) - (state.teamRuns * (i / 8))));
+    const oppChunk = Math.max(0, Math.round((state.runs * ((i + 1) / 8)) - (state.runs * (i / 8))));
+    state.teamRunsByInning[i] = teamChunk;
+    state.runsByInning[i] = oppChunk;
+  }
+  state.runsByInning[8] = 0;
+  state.teamRunsByInning[8] = 0;
+  if(rnd() < 0.35) state.runners[0] = { speed:'MID', name:'선행 주자', archetype:'legacy', aggression:0.45, iq:0.55, steal:0.20 };
+  syncStateRunners();
+}
+
+function updateHintPanel(){
+  const list = document.querySelector('#hint-panel ul');
+  if(!list) return;
+  if(!state || !profile){
+    list.innerHTML = `
+      <li>9회까지 던질 수 있지만, 피로도가 높아질수록 실투가 중앙으로 몰립니다.</li>
+      <li>강판 버튼은 타자 종료 후 교체 예약도 가능합니다.</li>
+      <li>존 공략, 추격 유도, CSW%, 1구 스트라이크 비율까지 커리어에 누적됩니다.</li>
+      <li>코너만 고집해도 실투가 날 수 있으니 카운트와 체력을 함께 보세요.</li>
+    `;
+    return;
+  }
+  list.innerHTML = state.goals.map(goal => {
+    const value = goal.read(state);
+    const progress = typeof value === 'number'
+      ? (value < 1 ? `${Math.round(value * 100)}%` : `${value.toFixed ? value.toFixed(1) : value}`)
+      : `${value}`;
+    return `<li>${goal.completed ? '완료' : '목표'} · ${goal.label} · 현재 ${progress} · 보상 XP ${goal.reward}</li>`;
+  }).join('');
+}
+
+function syncGoals(){
+  if(!state?.goals) return;
+  state.goals = hydrateGoals(state.goals);
+  state.goals.forEach(goal => {
+    goal.completed = evaluateGoal(goal, state);
+  });
+}
+
+function playResultAudio(kind){
+  if(!window.AudioContext && !window.webkitAudioContext) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  playResultAudio.ctx = playResultAudio.ctx || new Ctx();
+  const ctx = playResultAudio.ctx;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  const map = {
+    strike:[620, 0.07],
+    ball:[320, 0.05],
+    contact:[520, 0.08],
+    big:[760, 0.15],
+    out:[260, 0.08]
+  };
+  const [freq, dur] = map[kind] || [440, 0.06];
+  o.frequency.value = freq;
+  o.type = kind === 'big' ? 'sawtooth' : 'triangle';
+  g.gain.value = 0.03;
+  o.connect(g);
+  g.connect(ctx.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+  o.stop(ctx.currentTime + dur);
+}
+
+function pulseStage(kind){
+  const field = $('field-wrap');
+  if(!field) return;
+  const colors = {
+    strike:'0 0 0 2px #f5c84255 inset',
+    ball:'0 0 0 2px #42d87b55 inset',
+    out:'0 0 0 2px #59b0ff55 inset',
+    hit:'0 0 0 2px #ff914d66 inset',
+    hr:'0 0 0 2px #ef5f7a77 inset'
+  };
+  field.style.boxShadow = colors[kind] || '';
+  setTimeout(() => { field.style.boxShadow = ''; }, 240);
+}
+
+function simulateAutoOffenseHalf(inning, offenseLabel, offenseRating, preventionRating, walkoffTarget = null){
+  const result = Engine.simulateAutoHalfInning({
+    offenseRating,
+    preventionRating,
+    walkoffTarget
+  }, rnd);
+  if(offenseLabel === 'our'){
+    applyTeamRuns(result.runs, inning);
+    addLog(`우리 팀 공격 ${inning}회말 · ${result.runs}점 (${result.summary})`, result.runs ? 'good' : 'neut');
+  } else {
+    const beforeLead = state.teamRuns > state.runs;
+    state.runs += result.runs;
+    state.runsByInning[inning - 1] += result.runs;
+    if(result.runs && beforeLead && state.teamRuns <= state.runs) state.leadTakenWhilePitching = false;
+    if(result.runs && state.teamRuns <= state.runs) state.lossCharged = true;
+    addLog(`상대 자동 공격 ${inning}회초 · ${result.runs}점 (${result.summary})`, result.runs ? 'bad' : 'neut');
+  }
+  return result;
+}
+
+function completeRemainingGameAfterExit(){
+  let inning = state.inning;
+  let topPlayed = state.outs >= 3;
+  if(!topPlayed){
+    const beforeLead = state.teamRuns > state.runs;
+    const oppHalf = Engine.simulateAutoHalfInning({
+      offenseRating:clamp(state.opponent.lineup.reduce((sum, batter) => sum + batter.threat, 0) / state.opponent.lineup.length, 0.75, 1.35),
+      preventionRating:state.bullpenRating,
+      startOuts:state.outs
+    }, rnd);
+    state.runs += oppHalf.runs;
+    state.runsByInning[inning - 1] += oppHalf.runs;
+    if(oppHalf.runs && beforeLead && state.teamRuns <= state.runs) state.leadTakenWhilePitching = false;
+    if(oppHalf.runs && state.teamRuns <= state.runs) state.lossCharged = true;
+    addLog(`불펜이 ${inning}회초를 마무리함 · ${oppHalf.runs}실점 (${oppHalf.summary})`, oppHalf.runs ? 'bad' : 'good');
+    topPlayed = true;
+  }
+  while(true){
+    const walkoffTarget = inning >= 9 && state.teamRuns < state.runs ? (state.runs - state.teamRuns + 1) : null;
+    simulateAutoOffenseHalf(inning, 'our', state.teamOffenseRating, state.opponentBullpenRating, walkoffTarget);
+    if(inning >= 9 && state.teamRuns !== state.runs) break;
+    inning++;
+    const oppHalf = Engine.simulateAutoHalfInning({
+      offenseRating:clamp(state.opponent.lineup.reduce((sum, batter) => sum + batter.threat, 0) / state.opponent.lineup.length, 0.75, 1.35),
+      preventionRating:state.bullpenRating
+    }, rnd);
+    const beforeLead = state.teamRuns > state.runs;
+    state.runs += oppHalf.runs;
+    state.runsByInning[inning - 1] = (state.runsByInning[inning - 1] || 0) + oppHalf.runs;
+    if(oppHalf.runs && beforeLead && state.teamRuns <= state.runs) state.leadTakenWhilePitching = false;
+    if(oppHalf.runs && state.teamRuns <= state.runs) state.lossCharged = true;
+    addLog(`불펜 ${inning}회초 · ${oppHalf.runs}실점 (${oppHalf.summary})`, oppHalf.runs ? 'bad' : 'good');
+    if(inning >= 9 && state.teamRuns > state.runs) break;
+  }
+}
+
+function settleDecision(){
+  if(state.teamRuns > state.runs){
+    if(state.appearanceRole === 'closer'){
+      if(state.saveOpportunity && !state.blownSave && state.inning === 9 && state.outs >= 3){
+        state.decision = 'SAVE';
+        state.gameStats.saves++;
+      } else if(state.blownSave){
+        state.decision = 'WIN';
+        state.gameStats.wins++;
+        state.gameStats.blownSaves++;
+      } else {
+        state.decision = 'WIN';
+        state.gameStats.wins++;
+      }
+    } else if(state.leadTakenWhilePitching && state.gameStats.outsRecorded >= 15){
+      state.decision = 'WIN';
+      state.gameStats.wins++;
+    } else {
+      state.decision = 'ND';
+      state.gameStats.noDecisions++;
+    }
+  } else if(state.teamRuns < state.runs){
+    if(state.lossCharged){
+      state.decision = 'LOSS';
+      state.gameStats.losses++;
+    } else {
+      state.decision = 'ND';
+      state.gameStats.noDecisions++;
+    }
+    if(state.blownSave) state.gameStats.blownSaves++;
+  } else {
+    state.decision = 'ND';
+    state.gameStats.noDecisions++;
+    if(state.blownSave) state.gameStats.blownSaves++;
+  }
 }
 
 function startNewGame(){
   if(!profile){ renderStartOverlay(); return; }
   state = makeFreshState();
+  const context = prepareOutingContext();
+  state.opponent = context.opponent;
+  state.goals = context.goals;
+  state.teamOffenseRating = context.teamOffenseRating;
+  state.bullpenRating = context.bullpenRating;
+  state.opponentBullpenRating = context.opponentBullpenRating;
+  if(state.appearanceRole === 'closer') seedCloserAppearance(context);
   renderPitchButtons();
   buildZoneGrid();
   buildLineScore();
   loadNextBatter();
   resetSelections();
   showReaction('idle', '첫 타자를 상대할 준비가 됐습니다.', false);
-  showResult('', '구종과 코스를 선택하세요', '9회까지 투구할 수 있고, 원하면 중간에 강판할 수 있습니다.');
+  showResult('', '구종과 코스를 선택하세요', state.appearanceRole === 'closer' ? '세이브 상황입니다. 리드를 지키면 세이브가 기록됩니다.' : '9회까지 투구할 수 있고, 원하면 중간에 강판할 수 있습니다.');
   $('log-list').innerHTML = '';
-  addLog(`${profile.name} 선발 등판. 1회 수비 시작.`, 'good');
+  addLog(`${profile.name} 선발 등판. ${state.opponent.emoji} ${state.opponent.name}전 시작.`, 'good');
   refreshUI();
   hideOverlay();
   persistSave();
@@ -311,6 +764,12 @@ function startNewGame(){
 function resumeSavedGame(){
   if(!saveData.activeGame || !profile){ renderStartOverlay(); return; }
   state = { ...normalizeGameState(saveData.activeGame), busy:false, committed:false };
+  state.goals = hydrateGoals(state.goals);
+  if(!state.opponent || !state.goals?.length){
+    const context = prepareOutingContext();
+    state.opponent = state.opponent || context.opponent;
+    state.goals = state.goals?.length ? state.goals : context.goals;
+  }
   renderPitchButtons();
   buildZoneGrid();
   buildLineScore();
@@ -328,8 +787,8 @@ function updateBatterCard(){
   const batter = state?.batter;
   if(!batter) return;
   $('batter-avatar').textContent = batter.emoji;
-  $('batter-name').textContent = batter.name;
-  $('batter-type').textContent = batter.desc;
+  $('batter-name').textContent = batter.spot ? `${batter.spot}번 ${batter.name}` : batter.name;
+  $('batter-type').textContent = batter.teamName ? `${batter.teamEmoji} ${batter.teamName} · ${batter.desc}` : batter.desc;
   $('stat-swing-ball').textContent = `${Math.round(batter.swingBall * 100)}%`;
   $('stat-swing-str').textContent = `${Math.round(batter.swingStrike * 100)}%`;
   $('stat-contact').textContent = `${Math.round(batter.contact * 100)}%`;
@@ -354,10 +813,12 @@ function updatePlayerCard(){
   }
   const trait = getArchetype();
   const metrics = computeMetrics(profile.career);
+  const league = getLeagueConfig();
+  const season = profile.season;
   $('player-avatar').textContent = trait.emoji;
   $('player-name').textContent = `${profile.name} #${profile.number}`;
-  $('player-meta').textContent = `${profile.handedness} · ${trait.label}`;
-  $('player-tags').innerHTML = `<span class="tag">${trait.handBonus}</span><span class="tag">최대 체력 ${trait.maxStamina}</span><span class="tag">커리어 저장됨</span>`;
+  $('player-meta').textContent = `${profile.handedness} · ${trait.label} · ${league.label} · ${profile.appearanceRole === 'closer' ? '마무리' : '선발'}`;
+  $('player-tags').innerHTML = `<span class="tag">LV ${profile.progress.level}</span><span class="tag">PTS ${profile.progress.skillPoints}</span><span class="tag">${trait.handBonus}</span><span class="tag">시즌 ${season.year} ${season.wins}승 ${season.losses}패</span>`;
   $('player-games').textContent = profile.career.games;
   $('player-ip').textContent = formatIP(profile.career.outsRecorded);
   $('player-era').textContent = formatRate(metrics.era);
@@ -426,7 +887,8 @@ function updateManagerPanel(){
   }
   const metrics = computeMetrics(state.gameStats);
   const pending = state.pendingPull ? '현재 타자 종료 후 강판 예약됨.' : '원하면 지금 강판하거나, 타자 종료 후 교체를 예약할 수 있습니다.';
-  $('manager-copy').textContent = `${profile.name} ${profile.handedness} / ${getArchetype().label}. 현재 등판 ERA ${formatRate(metrics.era)}, CSW ${formatPct(metrics.csw)}. ${pending}`;
+  const opponentText = state.opponent ? `${state.opponent.emoji} ${state.opponent.name}` : '상대 없음';
+  $('manager-copy').textContent = `${profile.name} ${profile.handedness} / ${getArchetype().label} / ${opponentText}. 스코어 ${state.teamRuns}-${state.runs}, 현재 등판 ERA ${formatRate(metrics.era)}, CSW ${formatPct(metrics.csw)}, 목표 ${goalsProgressText()}. ${pending}`;
   $('sub-btn').className = state.pendingPull ? 'ghost-btn pending' : 'ghost-btn';
   $('sub-btn').textContent = state.pendingPull ? '강판 예약 취소' : '강판';
 }
@@ -439,11 +901,19 @@ function updateStatPanels(){
   const outing = state ? state.gameStats : emptyStatLine();
   const outingMetrics = computeMetrics(outing);
   const careerMetrics = computeMetrics(profile ? profile.career : emptyStatLine());
+  const season = profile?.season || createSeason(profile?.league || 'college', 1);
   $('outing-grid').innerHTML = [
+    metricItem('우리 팀', state ? state.teamRuns : 0, 'accent'),
     metricItem('실점', state ? state.runs : 0, 'accent'),
     metricItem('투구수', state ? state.pitchCount : 0),
     metricItem('상대 타자', state ? state.faced : 0),
     metricItem('유형', profile ? ARCHETYPES[profile.archetype].label : '—'),
+    metricItem('역할', profile ? (profile.appearanceRole === 'closer' ? '마무리' : '선발') : '—'),
+    metricItem('결정', decisionLabel(state?.decision || 'PENDING')),
+    metricItem('리그', profile ? getLeagueConfig().label : '—'),
+    metricItem('상대', state?.opponent ? state.opponent.name : '—'),
+    metricItem('시즌', profile ? `${season.year} / ${season.currentGame + (state?.gameEnded ? 1 : 0)}G` : '—'),
+    metricItem('W-L', profile ? `${season.wins}-${season.losses}` : '0-0'),
     metricItem('IP', formatIP(outing.outsRecorded), 'accent'),
     metricItem('ERA', formatRate(outingMetrics.era), outingMetrics.era <= 3 ? 'safe' : outingMetrics.era >= 5 ? 'danger' : ''),
     metricItem('WHIP', formatRate(outingMetrics.whip)),
@@ -458,7 +928,9 @@ function updateStatPanels(){
     metricItem('FIP', formatRate(outingMetrics.fip))
     ].join('');
   $('career-grid').innerHTML = [
+    metricItem('LV', profile ? profile.progress.level : 1, 'accent'), metricItem('PTS', profile ? profile.progress.skillPoints : 0),
     metricItem('G', profile ? profile.career.games : 0, 'accent'), metricItem('IP', profile ? formatIP(profile.career.outsRecorded) : '0.0'),
+    metricItem('W-L', profile ? `${profile.career.wins}-${profile.career.losses}` : '0-0'), metricItem('SV', profile ? profile.career.saves : 0),
     metricItem('ERA', formatRate(careerMetrics.era)), metricItem('WHIP', formatRate(careerMetrics.whip)),
     metricItem('K/9', formatRate(careerMetrics.k9)), metricItem('BB/9', formatRate(careerMetrics.bb9)),
     metricItem('H/9', formatRate(careerMetrics.h9)), metricItem('HR/9', formatRate(careerMetrics.hr9)),
@@ -469,6 +941,7 @@ function updateStatPanels(){
 
 function refreshUI(){
   syncStateRunners();
+  syncGoals();
   updatePlayerCard();
   updateScoreboard();
   updateRunners();
@@ -476,6 +949,7 @@ function refreshUI(){
   updateLineScore();
   updateManagerPanel();
   updateStatPanels();
+  updateHintPanel();
   renderPitchButtons();
   checkReady();
 }
@@ -490,6 +964,7 @@ function resetUIForNoGame(){
   updateLineScore();
   updateManagerPanel();
   updateStatPanels();
+  updateHintPanel();
   showReaction('idle', '캐릭터를 생성하면 실제 경기 로그가 누적됩니다.', false);
   showResult('', '캐릭터를 준비하세요', '경기를 시작하면 투구와 커리어 지표가 저장됩니다.');
   $('log-list').innerHTML = '';
@@ -514,6 +989,11 @@ function showResult(code, msg, sub){
   $('result-text').textContent = msg;
   $('result-sub').textContent = sub || '';
   if(classes[code]) box.classList.add(classes[code]);
+  if(code === 'ball'){ playResultAudio('ball'); pulseStage('ball'); }
+  else if(['called_k','whiff','foul'].includes(code)){ playResultAudio('strike'); pulseStage('strike'); }
+  else if(['groundout','flyout'].includes(code)){ playResultAudio('out'); pulseStage('out'); }
+  else if(['single','double'].includes(code)){ playResultAudio('contact'); pulseStage('hit'); }
+  else if(code === 'homerun'){ playResultAudio('big'); pulseStage('hr'); }
 }
 
 function addLog(text, type){
@@ -573,9 +1053,9 @@ function getCommandModifier(){
   return (0.70 + ((staminaPct - 0.15) / 0.57) * 0.30) * fatigueMods.command;
 }
 
-function resolveActualZone(targetZoneNum, pitch){
+function resolveActualZone(targetZoneNum, pitch, sequence){
   const zone = ZONES[targetZoneNum];
-  const commandChance = clamp(zone.command * pitch.controlMod * getCommandModifier(), 0.40, 0.98);
+  const commandChance = clamp(zone.command * pitch.controlMod * getCommandModifier() * (sequence?.command || 1), 0.40, 0.98);
   if(rnd() < commandChance) return targetZoneNum;
   const missOptions = MISS_MAP[targetZoneNum].map(option => ({ ...option }));
   if(commandChance < 0.68) missOptions.forEach(option => { if(option.zone === 5) option.weight += 0.12; });
@@ -690,7 +1170,7 @@ function calcResult(pitchKey, targetZoneNum){
   const batter = state.batter;
   const sequence = Engine.getPitchSequencing(state, pitchKey);
   const fatigue = Engine.getFatigueModifiers(state);
-  const actualZone = resolveActualZone(targetZoneNum, pitch);
+  const actualZone = resolveActualZone(targetZoneNum, pitch, sequence);
   const zone = ZONES[actualZone];
   const actualInZone = zone.isStrike > 0.5;
   const actualStrike = rnd() < zone.isStrike;
@@ -816,12 +1296,32 @@ function finishPlateAppearance(result){
 
 function betweenInningRecovery(){ state.stamina = Math.min(state.maxStamina, state.stamina + getArchetype().recovery); }
 
+function handleCompletedDefensiveInning(){
+  if(state.runsByInning[state.inning - 1] === 0) state.gameStats.scorelessInnings++;
+  state.gameStats.inningsCompleted++;
+  if(state.inning >= 9 && state.teamRuns > state.runs){
+    endOuting('complete');
+    return;
+  }
+  const walkoffTarget = state.inning >= 9 && state.teamRuns < state.runs ? (state.runs - state.teamRuns + 1) : null;
+  simulateAutoOffenseHalf(state.inning, 'our', state.teamOffenseRating, state.opponentBullpenRating, walkoffTarget);
+  if(state.inning >= 9 && state.teamRuns !== state.runs){
+    endOuting('complete');
+    return;
+  }
+  if(state.pendingPull){
+    endOuting('manager');
+    return;
+  }
+  renderBetweenInningOverlay();
+}
+
 function renderBetweenInningOverlay(){
   state.betweenInnings = true;
   persistSave();
   const inningRuns = state.runsByInning[state.inning - 1];
   const metrics = computeMetrics(state.gameStats);
-  showOverlay(`${state.inning}회 종료`, `<div>${state.inning}회를 마쳤습니다. 이번 이닝 실점은 <strong style="color:var(--accent)">${inningRuns}</strong>점입니다.</div><div class="summary-grid"><div class="summary-chip"><div class="label">누적 실점</div><div class="value">${state.runs}</div></div><div class="summary-chip"><div class="label">투구 수</div><div class="value">${state.pitchCount}</div></div><div class="summary-chip"><div class="label">현재 ERA</div><div class="value">${formatRate(metrics.era)}</div></div></div><div class="overlay-note">계속 던지면 ${state.inning + 1}회 수비가 시작되고, 교체를 선택하면 현재 기록이 커리어에 반영됩니다.</div>`, `<button class="ghost-btn" onclick="endOuting('manager')">여기서 내려간다</button><button class="primary-btn" onclick="continueToNextInning()">다음 이닝 계속</button>`);
+  showOverlay(`${state.inning}회 종료`, `<div>${state.inning}회를 마쳤습니다. 이번 이닝 실점은 <strong style="color:var(--accent)">${inningRuns}</strong>점입니다.</div><div class="summary-grid"><div class="summary-chip"><div class="label">우리 팀</div><div class="value">${state.teamRuns}</div></div><div class="summary-chip"><div class="label">상대</div><div class="value">${state.runs}</div></div><div class="summary-chip"><div class="label">투구 수</div><div class="value">${state.pitchCount}</div></div><div class="summary-chip"><div class="label">현재 ERA</div><div class="value">${formatRate(metrics.era)}</div></div></div><div class="overlay-note">계속 던지면 ${state.inning + 1}회 수비가 시작되고, 교체를 선택하면 남은 경기는 자동 진행됩니다.</div>`, `<button class="ghost-btn" onclick="endOuting('manager')">여기서 내려간다</button><button class="primary-btn" onclick="continueToNextInning()">다음 이닝 계속</button>`);
 }
 
 function continueToNextInning(){
@@ -849,15 +1349,43 @@ function requestPull(){
   refreshUI(); persistSave();
 }
 
+function finalizeSeasonGame(){
+  const league = getLeagueConfig();
+  const season = profile.season;
+  state.supportRuns = state.teamRuns;
+  state.winOutcome = state.teamRuns > state.runs ? 'win' : state.teamRuns < state.runs ? 'loss' : 'nd';
+  if(state.winOutcome === 'win') season.wins++;
+  else if(state.winOutcome === 'loss') season.losses++;
+  season.currentGame++;
+  mergeStatLine(season.stats, state.gameStats);
+}
+
+function finalizeOutingRewards(){
+  const completedGoals = state.goals.filter(goal => evaluateGoal(goal, state));
+  const xpGain = 40 + Math.round(state.gameStats.outsRecorded * 4) + (state.gameStats.strikeouts * 6) + completedGoals.reduce((sum, goal) => sum + goal.reward, 0);
+  const pointsGain = completedGoals.length + (state.winOutcome === 'win' ? 1 : 0);
+  const growth = applyProfileXp(xpGain);
+  profile.progress.skillPoints += pointsGain;
+  profile.season.goalsCompleted += completedGoals.length;
+  return { completedGoals, xpGain, pointsGain, growth };
+}
+
 function endOuting(reason){
   if(!state || state.committed) return;
   state.gameEnded = true; state.committed = true; state.betweenInnings = false;
-  profile.career.games++; profile.career.starts++;
+  if(reason !== 'complete') completeRemainingGameAfterExit();
+  else if(state.teamRuns === state.runs && state.inning >= 9) completeRemainingGameAfterExit();
+  settleDecision();
+  finalizeSeasonGame();
+  profile.career.games++;
+  if(state.appearanceRole === 'starter') profile.career.starts++;
   mergeStatLine(profile.career, state.gameStats);
+  const reward = finalizeOutingRewards();
   persistSave();
   const metrics = computeMetrics(state.gameStats);
+  const season = profile.season;
   showOverlay(reason === 'complete' ? '🏁 9회 완주' : '🧢 등판 종료', reason === 'complete' ? `<div>9회까지 마운드를 지켰습니다.</div>` : `<div>감독이 마운드에 올라와 투수를 교체했습니다.</div>`, `<button class="ghost-btn" onclick="renderStartOverlay()">캐릭터 관리</button><button class="primary-btn" onclick="startNewGame()">같은 투수로 새 경기</button>`);
-  $('overlay-body').innerHTML += `<div class="summary-grid"><div class="summary-chip"><div class="label">실점</div><div class="value">${state.runs}</div></div><div class="summary-chip"><div class="label">투구 수</div><div class="value">${state.pitchCount}</div></div><div class="summary-chip"><div class="label">이닝</div><div class="value">${formatIP(state.gameStats.outsRecorded)}</div></div><div class="summary-chip"><div class="label">ERA</div><div class="value">${formatRate(metrics.era)}</div></div><div class="summary-chip"><div class="label">WHIP</div><div class="value">${formatRate(metrics.whip)}</div></div><div class="summary-chip"><div class="label">CSW%</div><div class="value">${formatPct(metrics.csw)}</div></div></div><div class="overlay-note">${profile.name}의 커리어 누적 기록이 저장되었습니다.</div>`;
+  $('overlay-body').innerHTML += `<div class="summary-grid"><div class="summary-chip"><div class="label">우리 팀</div><div class="value">${state.teamRuns}</div></div><div class="summary-chip"><div class="label">상대</div><div class="value">${state.runs}</div></div><div class="summary-chip"><div class="label">투구 수</div><div class="value">${state.pitchCount}</div></div><div class="summary-chip"><div class="label">이닝</div><div class="value">${formatIP(state.gameStats.outsRecorded)}</div></div><div class="summary-chip"><div class="label">ERA</div><div class="value">${formatRate(metrics.era)}</div></div><div class="summary-chip"><div class="label">WHIP</div><div class="value">${formatRate(metrics.whip)}</div></div><div class="summary-chip"><div class="label">결정</div><div class="value">${decisionLabel(state.decision)}</div></div><div class="summary-chip"><div class="label">득점 지원</div><div class="value">${state.supportRuns}</div></div><div class="summary-chip"><div class="label">XP</div><div class="value">+${reward.xpGain}</div></div><div class="summary-chip"><div class="label">포인트</div><div class="value">+${reward.pointsGain}</div></div></div><div class="overlay-note">목표 완료 ${reward.completedGoals.length}개 · 시즌 ${season.year} ${season.wins}승 ${season.losses}패 · 레벨 ${profile.progress.level}${reward.growth.levelUps ? ` (+${reward.growth.levelUps})` : ''}</div><div class="overlay-note">${profile.name}의 커리어 누적 기록이 저장되었습니다.</div>`;
   refreshUI();
 }
 
@@ -876,8 +1404,40 @@ async function throwPitch(){
     updateRunners();
     showReaction('idle', pickoff.sub, false);
     showResult('', pickoff.msg, pickoff.sub);
+    playResultAudio(pickoff.outsAdded ? 'out' : pickoff.runs ? 'big' : 'contact');
+    pulseStage(pickoff.outsAdded ? 'out' : pickoff.runs ? 'hr' : 'hit');
     addLog(pickoff.log, pickoff.tone);
     resetSelections();
+    if(state.outs >= 3){
+      state.busy = false;
+      persistSave();
+      handleCompletedDefensiveInning();
+      return;
+    }
+    state.busy = false;
+    refreshUI();
+    persistSave();
+    return;
+  }
+  if(!state.selectedZone){ state.busy = false; return; }
+  const selectedPitch = getPitchModel(state.selectedPitch);
+  const steal = Engine.resolveSteal(state, {
+    balls:state.balls,
+    strikes:state.strikes,
+    pitchKind:selectedPitch.kind,
+    pitcherHand:profile.handedness,
+    pickoffPressure:Math.max(...state.pickoff_attempts)
+  }, rnd);
+  if(steal.attempted){
+    state.outs += steal.outsAdded || 0;
+    state.gameStats.outsRecorded += steal.outsAdded || 0;
+    applyRuns(steal.runs || 0);
+    syncStateRunners();
+    showReaction('idle', steal.sub, false);
+    showResult('', steal.msg, steal.sub);
+    playResultAudio(steal.success ? 'contact' : 'out');
+    pulseStage(steal.success ? 'hit' : 'out');
+    addLog(steal.log, steal.tone);
     if(state.outs >= 3){
       if(state.runsByInning[state.inning - 1] === 0) state.gameStats.scorelessInnings++;
       state.gameStats.inningsCompleted++;
@@ -893,7 +1453,6 @@ async function throwPitch(){
     persistSave();
     return;
   }
-  if(!state.selectedZone){ state.busy = false; return; }
   state.pitchCount++;
   applyPitchDrain();
   const result = calcResult(state.selectedPitch, state.selectedZone);
@@ -913,12 +1472,8 @@ async function throwPitch(){
   refreshUI();
   if(plateEnded){
     if(state.outs >= 3){
-      if(state.runsByInning[state.inning - 1] === 0) state.gameStats.scorelessInnings++;
-      state.gameStats.inningsCompleted++;
       state.busy = false; resetSelections(); persistSave();
-      if(state.inning >= 9) endOuting('complete');
-      else if(state.pendingPull) endOuting('manager');
-      else renderBetweenInningOverlay();
+      handleCompletedDefensiveInning();
       return;
     }
     if(state.pendingPull){ state.busy = false; resetSelections(); endOuting('manager'); return; }
@@ -936,6 +1491,7 @@ function boot(){
   renderPitchButtons();
   if(profile && saveData.activeGame){
     state = { ...normalizeGameState(saveData.activeGame), busy:false, committed:false };
+    state.goals = hydrateGoals(state.goals);
     refreshUI();
     showReaction('idle', '저장된 등판이 있습니다. 이어서 시작할 수 있습니다.', false);
     renderStartOverlay();

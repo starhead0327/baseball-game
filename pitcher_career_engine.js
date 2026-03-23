@@ -19,14 +19,20 @@
       return {
         speed: runner.speed || 'MID',
         name: runner.name || `주자 ${index + 1}`,
-        archetype: runner.archetype || 'legacy'
+        archetype: runner.archetype || 'legacy',
+        aggression:runner.aggression ?? 0.45,
+        iq:runner.iq ?? 0.60,
+        steal:runner.steal ?? 0.35
       };
     }
     if(legacyBases[index]){
       return {
         speed: legacySpeeds[index] || 'MID',
         name:`레거시 주자 ${index + 1}`,
-        archetype:'legacy'
+        archetype:'legacy',
+        aggression:0.45,
+        iq:0.60,
+        steal:0.35
       };
     }
     return null;
@@ -56,7 +62,10 @@
     return {
       speed:batter?.speed || 'MID',
       name:batter?.name || '주자',
-      archetype:batter?.name || '타자'
+      archetype:batter?.name || '타자',
+      aggression:batter?.aggression ?? 0.45,
+      iq:batter?.iq ?? 0.60,
+      steal:batter?.steal ?? 0.35
     };
   }
 
@@ -117,13 +126,13 @@
     if(state.runners[2]) runs += scoreRunner(state, 2);
     if(state.runners[1]){
       const runner = cloneRunner(state.runners[1]);
-      const scoreChance = clamp(0.56 + speedAdjustment(runner.speed), 0.26, 0.86);
+      const scoreChance = clamp(0.46 + speedAdjustment(runner.speed) + ((runner.aggression || 0.45) * 0.18) + ((runner.iq || 0.6) * 0.12), 0.24, 0.88);
       if(rng() < scoreChance) runs += scoreRunner(state, 1);
       else next[2] = runner;
     }
     if(state.runners[0]){
       const runner = cloneRunner(state.runners[0]);
-      const thirdChance = clamp(0.28 + speedAdjustment(runner.speed), 0.10, 0.52);
+      const thirdChance = clamp(0.20 + speedAdjustment(runner.speed) + ((runner.aggression || 0.45) * 0.18) + ((runner.iq || 0.6) * 0.10), 0.08, 0.62);
       if(rng() < thirdChance) next[2] = runner;
       else next[1] = runner;
     }
@@ -141,7 +150,7 @@
     if(state.runners[1]) runs += scoreRunner(state, 1);
     if(state.runners[0]){
       const runner = cloneRunner(state.runners[0]);
-      const scoreChance = clamp(0.48 + speedAdjustment(runner.speed), 0.22, 0.78);
+      const scoreChance = clamp(0.40 + speedAdjustment(runner.speed) + ((runner.aggression || 0.45) * 0.14) + ((runner.iq || 0.6) * 0.10), 0.18, 0.84);
       if(rng() < scoreChance) runs += scoreRunner(state, 0);
       else next[2] = runner;
     }
@@ -174,9 +183,21 @@
     let runs = 0;
     let sub = '내야수가 잡아냈다.';
     let logSuffix = '땅볼 아웃';
-    if(state.outs <= 1 && state.runners[0]){
+    if(state.outs < 2 && state.runners[2] && !state.runners[0]){
+      const homePlay = clamp(0.42 - speedAdjustment(state.runners[2].speed), 0.18, 0.58);
+      if(rng() < homePlay){
+        state.runners[2] = null;
+        sub = '내야가 홈 승부를 택해 3루 주자를 잡았다.';
+        logSuffix = '홈 승부';
+      } else {
+        runs += 1;
+        state.runners[2] = null;
+        sub = '1루 아웃과 맞바꿔 3루 주자의 득점을 허용했다.';
+        logSuffix = '타점 땅볼';
+      }
+    } else if(state.outs <= 1 && state.runners[0]){
       const firstRunner = state.runners[0];
-      const dpChance = clamp(0.38 - speedAdjustment(firstRunner.speed), 0.16, 0.55);
+      const dpChance = clamp(0.42 - speedAdjustment(firstRunner.speed) - ((firstRunner.iq || 0.6) * 0.10), 0.14, 0.58);
       if(rng() < dpChance){
         outsAdded = 2;
         state.runners[0] = null;
@@ -208,6 +229,13 @@
         state.runners[2] = null;
         sub = '희생플라이로 3루 주자가 태그업했다.';
         logSuffix = '희생플라이';
+      }
+    }
+    if(state.runners[1] && !state.runners[2]){
+      const advanceChance = clamp(0.18 + speedAdjustment(state.runners[1].speed) + ((state.runners[1].iq || 0.6) * 0.10), 0.06, 0.38);
+      if(rng() < advanceChance) {
+        state.runners[2] = state.runners[1];
+        state.runners[1] = null;
       }
     }
     syncBases(state);
@@ -276,6 +304,57 @@
     };
   }
 
+  function resolveSteal(state, context, rng){
+    const candidates = [];
+    if(state.runners[0] && !state.runners[1]) candidates.push({ from:0, to:1, runner:state.runners[0], base:'2루' });
+    if(state.runners[1] && !state.runners[2]) candidates.push({ from:1, to:2, runner:state.runners[1], base:'3루' });
+    if(!candidates.length) return { attempted:false };
+    candidates.sort((a, b) => ((b.runner.steal || 0) + (b.runner.aggression || 0)) - ((a.runner.steal || 0) + (a.runner.aggression || 0)));
+    const candidate = candidates[0];
+    let attemptChance = 0.03 + (candidate.runner.steal || 0) * 0.18 + (candidate.runner.aggression || 0) * 0.12;
+    if(context.balls >= 2) attemptChance += 0.04;
+    if(context.strikes === 2) attemptChance -= 0.03;
+    if(context.pitchKind === 'breaking' || context.pitchKind === 'offspeed') attemptChance += 0.04;
+    if(context.pitchKind === 'fastball') attemptChance -= 0.03;
+    attemptChance -= context.pickoffPressure * 0.03;
+    attemptChance = clamp(attemptChance, 0.02, 0.36);
+    if(rng() >= attemptChance) return { attempted:false };
+    let successChance = 0.46 + speedAdjustment(candidate.runner.speed) + (candidate.runner.steal || 0) * 0.22 + (candidate.runner.iq || 0.6) * 0.10;
+    if(context.pitchKind === 'breaking' || context.pitchKind === 'offspeed') successChance += 0.08;
+    if(context.pitchKind === 'fastball') successChance -= 0.05;
+    if(context.pitcherHand === '좌투' && candidate.from === 0) successChance -= 0.04;
+    successChance = clamp(successChance, 0.18, 0.88);
+    if(rng() < successChance){
+      state.runners[candidate.to] = state.runners[candidate.from];
+      state.runners[candidate.from] = null;
+      syncBases(state);
+      state.runnerSpeeds = state.runners.map(runner => runner ? runner.speed : null);
+      return {
+        attempted:true,
+        success:true,
+        outsAdded:0,
+        runs:0,
+        msg:`도루 성공! ${candidate.base}를 훔쳤다.`,
+        sub:'투수가 공을 던지는 사이 스타트를 끊었다.',
+        log:`도루 성공 · ${candidate.base}`,
+        tone:'bad'
+      };
+    }
+    state.runners[candidate.from] = null;
+    syncBases(state);
+    state.runnerSpeeds = state.runners.map(runner => runner ? runner.speed : null);
+    return {
+      attempted:true,
+      success:false,
+      outsAdded:1,
+      runs:0,
+      msg:'도루 실패!',
+      sub:'포수가 정확히 송구해 주자를 잡아냈다.',
+      log:`도루 실패 · ${candidate.base}`,
+      tone:'good'
+    };
+  }
+
   function getPitchSequencing(state, pitchKey){
     const history = Array.isArray(state.pitchHistory) ? state.pitchHistory.slice(-4) : [];
     let consecutive = 0;
@@ -288,9 +367,11 @@
     let whiff = 1;
     let damage = 1;
     let chase = 1;
+    let command = 1;
     if(consecutive >= 2){
       whiff *= 0.84;
       damage *= 1.16;
+      command *= 0.94;
     } else if(consecutive === 1){
       whiff *= 0.93;
       damage *= 1.07;
@@ -309,8 +390,19 @@
       if(previous.targetZone === previous.actualZone && previous.actualZone === state.selectedZone){
         damage *= 1.05;
       }
+      if(previous.actualZone === state.selectedZone){
+        whiff *= 0.96;
+        damage *= 1.08;
+      }
+      const sameThird = [1,4,7].includes(previous.actualZone) && [1,4,7].includes(state.selectedZone)
+        || [2,5,8].includes(previous.actualZone) && [2,5,8].includes(state.selectedZone)
+        || [3,6,9].includes(previous.actualZone) && [3,6,9].includes(state.selectedZone);
+      if(sameThird){
+        chase *= 0.96;
+        damage *= 1.04;
+      }
     }
-    return { whiff, damage, chase };
+    return { whiff, damage, chase, command };
   }
 
   function getFatigueModifiers(state){
@@ -329,6 +421,86 @@
     state.pitchHistory = [...(state.pitchHistory || []), entry].slice(-8);
   }
 
+  function advanceSimpleBases(bases, hitType){
+    let runs = 0;
+    const next = [false, false, false];
+    if(hitType === 'walk'){
+      if(bases[0] && bases[1] && bases[2]) runs++;
+      if(bases[1] && bases[0]) next[2] = true;
+      else if(bases[2]) next[2] = true;
+      if(bases[0]) next[1] = true;
+      if(bases[1] && !next[2]) next[2] = true;
+      next[0] = true;
+      return { runs, bases:next };
+    }
+    if(hitType === 'single'){
+      if(bases[2]) runs++;
+      if(bases[1]) runs++;
+      if(bases[0]) next[1] = true;
+      next[0] = true;
+      return { runs, bases:next };
+    }
+    if(hitType === 'double'){
+      runs += bases.filter(Boolean).length;
+      next[1] = true;
+      return { runs, bases:next };
+    }
+    if(hitType === 'homer'){
+      runs += bases.filter(Boolean).length + 1;
+      return { runs, bases:[false, false, false] };
+    }
+    return { runs:0, bases };
+  }
+
+  function simulateAutoHalfInning(context, rng){
+    const offense = context.offenseRating || 1;
+    const prevention = context.preventionRating || 1;
+    let outs = context.startOuts || 0;
+    let runs = 0;
+    let bases = [false, false, false];
+    const events = [];
+    while(outs < 3){
+      const walkProb = clamp(0.065 * offense / prevention, 0.03, 0.16);
+      const hitProb = clamp(0.19 * offense / prevention, 0.10, 0.34);
+      const extraBaseProb = clamp(0.26 * offense / prevention, 0.12, 0.42);
+      const homerProb = clamp(0.028 * offense / prevention, 0.01, 0.08);
+      const roll = rng();
+      if(roll < walkProb){
+        const advanced = advanceSimpleBases(bases, 'walk');
+        runs += advanced.runs;
+        bases = advanced.bases;
+        events.push('볼넷');
+      } else if(roll < walkProb + hitProb){
+        const hitRoll = rng();
+        if(hitRoll < homerProb){
+          const advanced = advanceSimpleBases(bases, 'homer');
+          runs += advanced.runs;
+          bases = advanced.bases;
+          events.push('홈런');
+        } else if(hitRoll < extraBaseProb){
+          const advanced = advanceSimpleBases(bases, 'double');
+          runs += advanced.runs;
+          bases = advanced.bases;
+          events.push('2루타');
+        } else {
+          const advanced = advanceSimpleBases(bases, 'single');
+          runs += advanced.runs;
+          bases = advanced.bases;
+          events.push('안타');
+        }
+      } else {
+        outs++;
+        events.push(outs === 3 ? '이닝 종료' : '아웃');
+      }
+      if(context.walkoffTarget != null && runs >= context.walkoffTarget) break;
+      if(runs >= 7) break;
+    }
+    return {
+      runs,
+      summary:events.slice(0, 4).join(' · ') || '삼자범퇴'
+    };
+  }
+
   global.PitcherCareerEngine = {
     normalizeGameState,
     syncBases,
@@ -337,8 +509,10 @@
     resolveGroundout,
     resolveFlyout,
     resolvePickoff,
+    resolveSteal,
     getPitchSequencing,
     getFatigueModifiers,
-    recordPitchHistory
+    recordPitchHistory,
+    simulateAutoHalfInning
   };
 })(typeof window !== 'undefined' ? window : globalThis);

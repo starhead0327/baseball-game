@@ -72,4 +72,41 @@ function withRandom(values){
   assert.deepStrictEqual(state.bases, [false, false, false]);
 }
 
+{
+  const state = makeState();
+  state.runners = [{ speed:'HIGH', name:'Stealer', aggression:0.9, iq:0.7, steal:0.85 }, null, null];
+  Engine.syncBases(state);
+  const steal = Engine.resolveSteal(state, {
+    balls:2,
+    strikes:1,
+    pitchKind:'breaking',
+    pitcherHand:'우투',
+    pickoffPressure:0
+  }, withRandom([0.01, 0.01]));
+  assert.strictEqual(steal.attempted, true);
+  assert.strictEqual(steal.success, true);
+  assert.deepStrictEqual(state.bases, [false, true, false]);
+}
+
+{
+  const state = makeState();
+  state.selectedZone = 4;
+  state.pitchHistory = [
+    { pitchKey:'1', kind:'fastball', targetZone:4, actualZone:4, code:'called_k' },
+    { pitchKey:'1', kind:'fastball', targetZone:4, actualZone:4, code:'foul' }
+  ];
+  const seq = Engine.getPitchSequencing(state, '1');
+  assert.ok(seq.whiff < 1);
+  assert.ok(seq.damage > 1);
+}
+
+{
+  const auto = Engine.simulateAutoHalfInning({
+    offenseRating:1.1,
+    preventionRating:0.95
+  }, withRandom([0.05, 0.2, 0.9, 0.9, 0.9, 0.9]));
+  assert.ok(auto.runs >= 0);
+  assert.ok(typeof auto.summary === 'string');
+}
+
 console.log('pitcher_career_engine tests passed');
