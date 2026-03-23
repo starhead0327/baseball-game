@@ -49,6 +49,12 @@ const ZONE_COORDS = {
   7:{x:188,y:191},8:{x:210,y:191},9:{x:232,y:191}
 };
 
+const PITCHCAM_WORLD = {
+  1:{x:-22,y:-24},2:{x:0,y:-24},3:{x:22,y:-24},
+  4:{x:-24,y:0},5:{x:0,y:0},6:{x:24,y:0},
+  7:{x:-27,y:24},8:{x:0,y:24},9:{x:27,y:24}
+};
+
 const MISS_MAP = {
   1:[{zone:2,weight:0.34},{zone:4,weight:0.32},{zone:5,weight:0.34}],
   2:[{zone:1,weight:0.18},{zone:3,weight:0.18},{zone:5,weight:0.42},{zone:8,weight:0.22}],
@@ -1061,39 +1067,162 @@ function resolveActualZone(targetZoneNum, pitch, sequence){
   if(commandChance < 0.68) missOptions.forEach(option => { if(option.zone === 5) option.weight += 0.12; });
   return pickWeighted(missOptions);
 }
-function animateBall(zoneNum){
+function bezierPoint(t, p0, p1, p2, p3){
+  const mt = 1 - t;
+  return {
+    x:(mt ** 3) * p0.x + 3 * (mt ** 2) * t * p1.x + 3 * mt * (t ** 2) * p2.x + (t ** 3) * p3.x,
+    y:(mt ** 3) * p0.y + 3 * (mt ** 2) * t * p1.y + 3 * mt * (t ** 2) * p2.y + (t ** 3) * p3.y
+  };
+}
+
+function getTrajectoryProfile(pitch){
+  const handedness = profile?.handedness || '우투';
+  const armSide = handedness === '좌투' ? -1 : 1;
+  if(pitch.kind === 'fastball'){
+    return { lift:-10, bend1:4 * armSide, bend2:8 * armSide, drop:0, color:'#f5f8ff', duration:380 };
+  }
+  if(pitch.name === '슬라이더'){
+    return { lift:-14, bend1:8 * armSide, bend2:26 * armSide, drop:6, color:'#69a9ff', duration:450 };
+  }
+  if(pitch.name === '체인지업'){
+    return { lift:-4, bend1:-4 * armSide, bend2:-10 * armSide, drop:20, color:'#63ef97', duration:480 };
+  }
+  return { lift:-28, bend1:-14 * armSide, bend2:-4 * armSide, drop:34, color:'#ffd45d', duration:560 };
+}
+
+function getPitchCamProfile(pitch){
+  const handedness = profile?.handedness || '우투';
+  const armSide = handedness === '좌투' ? 1 : -1;
+  if(pitch.kind === 'fastball'){
+    return { bend1:6 * armSide, bend2:10 * armSide, rise:-10, sink:-2, color:'#f5f8ff', duration:420 };
+  }
+  if(pitch.name === '슬라이더'){
+    return { bend1:12 * armSide, bend2:34 * armSide, rise:-6, sink:12, color:'#69a9ff', duration:500 };
+  }
+  if(pitch.name === '체인지업'){
+    return { bend1:-7 * armSide, bend2:-18 * armSide, rise:-1, sink:24, color:'#63ef97', duration:520 };
+  }
+  return { bend1:-10 * armSide, bend2:-3 * armSide, rise:-20, sink:42, color:'#ffd45d', duration:590 };
+}
+
+function projectPitchCamWorld(point){
+  const depth = clamp(point.z, 0, 1);
+  const scale = 0.24 + ((1 - depth) * 1.08);
+  return {
+    x:85 + (point.x * scale),
+    y:22 + ((1 - depth) * 114) + (point.y * scale)
+  };
+}
+
+function getTraceNode(){
+  const svg = $('field-svg');
+  let trace = $('anim-trace');
+  if(trace) return trace;
+  trace = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  trace.setAttribute('id', 'anim-trace');
+  trace.setAttribute('fill', 'none');
+  trace.setAttribute('stroke-linecap', 'round');
+  trace.setAttribute('stroke-width', '2.2');
+  trace.setAttribute('opacity', '0');
+  svg.appendChild(trace);
+  return trace;
+}
+
+function getPitchCamNodes(){
+  return {
+    ball:$('pitchcam-ball'),
+    trace:$('pitchcam-trace'),
+    shadow:$('pitchcam-shadow')
+  };
+}
+
+function animateBall(zoneNum, pitch){
   return new Promise(resolve => {
     const ball = $('anim-ball');
+    const trace = getTraceNode();
+    const cam = getPitchCamNodes();
     const dest = ZONE_COORDS[zoneNum];
+    const camDest = PITCHCAM_WORLD[zoneNum] || PITCHCAM_WORLD[5];
     const startX = 210;
     const startY = 132;
-    const duration = 0.42;
+    const profileCurve = getTrajectoryProfile(pitch);
+    const camCurve = getPitchCamProfile(pitch);
+    const duration = Math.max(profileCurve.duration, camCurve.duration);
+    const p0 = { x:startX, y:startY };
+    const p1 = { x:startX + profileCurve.bend1, y:startY + profileCurve.lift };
+    const p2 = { x:dest.x - profileCurve.bend2, y:startY + 26 + profileCurve.drop };
+    const p3 = { x:dest.x, y:dest.y };
+    const cw0 = { x:0, y:-52, z:1 };
+    const cw1 = { x:camCurve.bend1, y:-34 + camCurve.rise, z:0.74 };
+    const cw2 = { x:camDest.x - camCurve.bend2, y:camDest.y + camCurve.sink, z:0.30 };
+    const cw3 = { x:camDest.x, y:camDest.y, z:0.02 };
+    const c0 = projectPitchCamWorld(cw0);
+    const c1 = projectPitchCamWorld(cw1);
+    const c2 = projectPitchCamWorld(cw2);
+    const c3 = projectPitchCamWorld(cw3);
+    const samples = Array.from({ length:16 }, (_, index) => {
+      const point = bezierPoint(index / 15, p0, p1, p2, p3);
+      return `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }).join(' ');
+    const camSamples = Array.from({ length:18 }, (_, index) => {
+      const point = bezierPoint(index / 17, c0, c1, c2, c3);
+      return `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }).join(' ');
     ball.setAttribute('cx', startX);
     ball.setAttribute('cy', startY);
     ball.setAttribute('r', 6);
+    ball.setAttribute('fill', profileCurve.color);
     ball.setAttribute('opacity', '1');
-    while(ball.firstChild) ball.removeChild(ball.firstChild);
-    const animate = (attr, from, to) => {
-      const node = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-      node.setAttribute('attributeName', attr);
-      node.setAttribute('from', from);
-      node.setAttribute('to', to);
-      node.setAttribute('dur', `${duration}s`);
-      node.setAttribute('fill', 'freeze');
-      ball.appendChild(node);
-      return node;
-    };
-    const ax = animate('cx', startX, dest.x);
-    const ay = animate('cy', startY, dest.y);
-    const ar = animate('r', 6, 3.5);
-    ax.beginElement(); ay.beginElement(); ar.beginElement();
-    setTimeout(() => {
+    trace.setAttribute('d', samples);
+    trace.setAttribute('stroke', profileCurve.color);
+    trace.setAttribute('opacity', '0.68');
+    cam.ball.setAttribute('cx', c0.x);
+    cam.ball.setAttribute('cy', c0.y);
+    cam.ball.setAttribute('r', 2.8);
+    cam.ball.setAttribute('fill', camCurve.color);
+    cam.ball.setAttribute('opacity', '1');
+    cam.trace.setAttribute('d', camSamples);
+    cam.trace.setAttribute('stroke', camCurve.color);
+    cam.trace.setAttribute('opacity', '0.74');
+    cam.shadow.setAttribute('opacity', '0.18');
+    const start = performance.now();
+    const tick = now => {
+      const t = Math.min(1, (now - start) / duration);
+      const point = bezierPoint(t, p0, p1, p2, p3);
+      const camPoint = bezierPoint(t, c0, c1, c2, c3);
+      const radius = 6 - (t * 2.4);
+      const camRadius = 2.8 + (Math.pow(t, 1.85) * 8.4);
+      ball.setAttribute('cx', point.x);
+      ball.setAttribute('cy', point.y);
+      ball.setAttribute('r', radius.toFixed(2));
+      trace.setAttribute('opacity', `${0.68 - (t * 0.3)}`);
+      cam.ball.setAttribute('cx', camPoint.x);
+      cam.ball.setAttribute('cy', camPoint.y);
+      cam.ball.setAttribute('r', camRadius.toFixed(2));
+      cam.trace.setAttribute('opacity', `${0.76 - (t * 0.22)}`);
+      cam.trace.setAttribute('stroke-width', `${1.2 + (t * 2.3)}`);
+      cam.shadow.setAttribute('cx', `${camPoint.x}`);
+      cam.shadow.setAttribute('cy', `${148 + (t * 18)}`);
+      cam.shadow.setAttribute('rx', `${4 + (t * 7)}`);
+      cam.shadow.setAttribute('ry', `${1.8 + (t * 2.2)}`);
+      cam.shadow.setAttribute('opacity', `${0.06 + (t * 0.22)}`);
+      if(t < 1){
+        requestAnimationFrame(tick);
+        return;
+      }
       ball.setAttribute('cx', -30);
       ball.setAttribute('cy', -30);
       ball.setAttribute('opacity', '0');
-      while(ball.firstChild) ball.removeChild(ball.firstChild);
+      ball.setAttribute('fill', '#fff');
+      trace.setAttribute('opacity', '0');
+      cam.ball.setAttribute('opacity', '0');
+      cam.ball.setAttribute('fill', '#fff');
+      cam.trace.setAttribute('opacity', '0');
+      cam.trace.setAttribute('stroke-width', '2.4');
+      cam.shadow.setAttribute('opacity', '0');
       resolve();
-    }, duration * 1000 + 50);
+    };
+    requestAnimationFrame(tick);
   });
 }
 
@@ -1464,7 +1593,7 @@ async function throwPitch(){
     code:result.code
   });
   recordPitchAnalytics(result);
-  await animateBall(result.actualZone);
+  await animateBall(result.actualZone, result.pitch);
   flashZone(result.actualZone, result.code);
   playBatterAnimation(result.reaction, result.code === 'homerun');
   showReaction(result.reaction, `${result.locationText} · ${result.pitch.name} ${result.pitch.speed}`, result.code === 'homerun');

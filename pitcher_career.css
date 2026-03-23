@@ -570,6 +570,28 @@ header h1{
   line-height:1.6;
 }
 
+#pitchcam-panel{
+  position:absolute;
+  right:18px;
+  bottom:18px;
+  width:190px;
+  margin:0;
+  padding:10px 10px 8px;
+  z-index:2;
+  background:linear-gradient(180deg,#0b1a31ef,#08111fed);
+  backdrop-filter:blur(3px);
+}
+
+#pitchcam-panel .panel-title{
+  margin-bottom:8px;
+}
+
+#pitchcam-svg{
+  display:block;
+  width:100%;
+  height:auto;
+}
+
 .reaction-look{border-color:var(--accent2);box-shadow:0 0 14px #4a9eff28}
 .reaction-whiff{border-color:var(--accent);box-shadow:0 0 14px #f5c84228}
 .reaction-contact{border-color:#ff9a4a;box-shadow:0 0 14px #ff9a4a28}
@@ -1026,6 +1048,12 @@ header h1{
 
   #field-svg{
     max-width:300px;
+  }
+
+  #pitchcam-panel{
+    width:160px;
+    right:10px;
+    bottom:10px;
   }
 }
 
